@@ -347,6 +347,10 @@ void runTests (int argc, const char** argv) {
 //
 
 int main (int argc, const char** argv) {
+    std::cout << "Programmer:       Seiji Emery\n";
+    std::cout << "Programmer's ID:  M00202623\n";
+    std::cout << "File:             " << __FILE__ << '\n' << std::endl;
+
     #ifdef RUN_TESTS
         runTests(argc, argv);
     #endif
