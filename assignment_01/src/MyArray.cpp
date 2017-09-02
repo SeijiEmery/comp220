@@ -20,8 +20,10 @@
 //
 
 #ifdef _WIN32
-    #define SEMERY_IMPL
-    #undef USE_CATCH
+    #ifdef USE_CATCH
+        #undef USE_CATCH
+        #define USE_MIN_TEST_FRAMEWORK
+    #endif
 #endif
 #if defined(SEMERY_IMPL) || !defined(USE_CATCH)
 
@@ -31,7 +33,7 @@
 
 #ifdef USE_CATCH
     #define CATCH_CONFIG_RUNNER
-    #include "catch.hpp"    // no, this isn't overkill >.>
+    #include "catch.hpp"
 #endif
 
 using namespace std;
@@ -414,8 +416,11 @@ int main () {
     // Fetch catch.hpp (and latest source) and rebuild.
     // Assumes unix, so disabled by #ifdefs above on windows.
     system("mkdir -p .temp");
-    system("cp ../src/MyArray.cpp .temp/MyArray.cpp");
-    // system("wget -nc -q -O .temp/MyArray.cpp https://raw.githubusercontent.com/SeijiEmery/comp220/master/assignment_01/src/MyArray.cpp");
+    #ifdef USE_LOCAL_SRC
+        system("cp ../src/MyArray.cpp .temp/MyArray.cpp");
+    #else
+        system("wget -nc -q -O .temp/MyArray.cpp https://raw.githubusercontent.com/SeijiEmery/comp220/master/assignment_01/src/MyArray.cpp");
+    #endif
     char build_cmd[1024] = "c++ -Wall -std=c++1z .temp/MyArray.cpp -o .temp/myarray -D SEMERY_IMPL\0";
     #ifdef RUN_TESTS
         strncat(&build_cmd[0], " -D RUN_TESTS", 1024);
