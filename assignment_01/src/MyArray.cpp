@@ -173,10 +173,13 @@ TEST_CASE("Array meets specifications", "[Array]") {
         }
         REQUIRE(array[0] == 42);
         REQUIRE(array[array.capacity()-1] == 42);
-        // REQUIRE(array[-1] == 0);
-        // REQUIRE(array[array.capacity()] == 0);
-        REQUIRE(array[-1] == 42);
-        REQUIRE(array[array.capacity()] == 42);
+        #ifdef ALWAYS_RETURN_ZERO
+            REQUIRE(array[-1] == 0);
+            REQUIRE(array[array.capacity()] == 0);
+        #else
+            REQUIRE(array[-1] == 42);
+            REQUIRE(array[array.capacity()] == 42);
+        #endif
     }
     SECTION("Array writes to dummy variable on out-of-bounds-write") {
         array[227] = -29;           // write to dummy variable
