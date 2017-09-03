@@ -19,6 +19,12 @@
 // difference to the actual program.
 //
 
+// Edit: contrary to the above, I'm turning this on by default.
+// If it is not on, values WILL be bugged for the keys array and return false-positives.
+// You can turn this off by commenting out the following line; array will perform according to spec,
+// but program behavior will be somewhat broken.
+#define ALWAYS_RETURN_ZERO
+
 #ifdef _WIN32
     #ifdef USE_CATCH
         #undef USE_CATCH
