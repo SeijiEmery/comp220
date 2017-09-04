@@ -7,7 +7,6 @@
 
 #include <iostream>     // cerr, cout
 #include <string>       // string
-#include <cmath>        // fabs
 #include <cstring>
 using namespace std;
 
@@ -72,7 +71,6 @@ namespace detail {
 #define REQUIRE_LE(a,b) REQUIRE_THAT(a <= b, a, b)
 #define REQUIRE_GT(a,b) REQUIRE_THAT(a > b, a, b)
 #define REQUIRE_LT(a,b) REQUIRE_THAT(a < b, a, b)
-
 //
 // End mini-testing framework
 //
@@ -81,9 +79,6 @@ namespace detail {
 //
 // Test implementation
 //
-
-#include <algorithm>
-
 template <typename T, size_t N>
 void _testArrayImpl (const char* name, T init, T first, T second, T third) {
     SECTION("Testing StaticArray<" << name << ", " << N << ">") {
