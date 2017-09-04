@@ -5,8 +5,10 @@
 // Tests our static array implementation.
 //
 
-#include <iostream>
-#include <string>
+#include <iostream>     // cerr, cout
+#include <string>       // string
+#include <cmath>        // fabs
+#include <cstring>
 using namespace std;
 
 #include "StaticArray.hpp"
@@ -27,12 +29,23 @@ int main () {
     return 0;
 }
 
+
+int cmp (int a, int b)   { return a - b; }
+int cmp (char a, char b) { return a - b; }
+int cmp (double a, double b) {
+    return (fabs(a - b) < 1e-20) ? 0 : a > b ? 1 : -1;
+}
+int cmp (const std::string& a, const std::string& b) {
+    return strcmp(a.c_str(), b.c_str());
+}
+
+
 //
 // Mini-testing framework (©2017 Seiji Emery)
 //
-#include <vector>
-#include <functional>
-#include <cstdlib>
+#include <vector>       // vector
+#include <functional>   // function
+#include <cstdlib>      // exit
 
 // Setup unittest dependencies
 namespace detail {
@@ -45,7 +58,7 @@ namespace detail {
     };
     template <typename A, typename B>
     void signalAssertFailure (const char* msg, const A& a, const B& b) {
-        std::cerr << msg << " (" << a << ", " << b << "), file " << __FILE__ << ':' << __LINE__ << '\n';
+        std::cerr << msg << " (" << a << ", " << b << ", cmp: " << cmp(a,b) << "), file " << __FILE__ << ':' << __LINE__ << '\n';
         for (auto i = g_testScope.size(); i --> 0; ) {
             g_testScope[i]();
         }
@@ -58,18 +71,18 @@ namespace detail {
     std::cerr << "in section " << args << '\n'; \
 }))
 
-#define REQUIRE_THAT(expr, a, b) do { \
-    if (!(expr)) { \
+#define REQUIRE_THAT(expr, cond, a, b) do { \
+    if (!(cond)) { \
         detail::signalAssertFailure("Test failed: " #expr, a, b); \
     } \
 } while (0)
 
-#define REQUIRE_EQ(a,b) REQUIRE_THAT(a == b, a, b)
-#define REQUIRE_NE(a,b) REQUIRE_THAT(a != b, a, b)
-#define REQUIRE_GE(a,b) REQUIRE_THAT(a >= b, a, b)
-#define REQUIRE_LE(a,b) REQUIRE_THAT(a <= b, a, b)
-#define REQUIRE_GT(a,b) REQUIRE_THAT(a > b, a, b)
-#define REQUIRE_LT(a,b) REQUIRE_THAT(a < b, a, b)
+#define REQUIRE_EQ(a,b) REQUIRE_THAT(a == b, cmp(a,b) == 0, a, b)
+#define REQUIRE_NE(a,b) REQUIRE_THAT(a != b, cmp(a,b) != 0, a, b)
+#define REQUIRE_GE(a,b) REQUIRE_THAT(a >= b, cmp(a,b) >= 0, a, b)
+#define REQUIRE_LE(a,b) REQUIRE_THAT(a <= b, cmp(a,b) <= 0, a, b)
+#define REQUIRE_GT(a,b) REQUIRE_THAT(a > b, cmp(a,b) > 0, a, b)
+#define REQUIRE_LT(a,b) REQUIRE_THAT(a < b, cmp(a,b) < 0, a, b)
 
 //
 // End mini-testing framework
@@ -90,6 +103,7 @@ void _testArrayImpl (const char* name, T init, T first, T second, T third) {
         }
         SECTION("Testing StaticArray initial values (should equal " << init << ")") {
             for (auto i = 0; i < array.capacity(); ++i) {
+                std::cout << "i = " << i << ", array[i] = " << array[i] << '\n';
                 REQUIRE_EQ(array[i], init);
             }
         }
