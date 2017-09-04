@@ -14,7 +14,7 @@ class StaticArray {
     T _dummy;
 public:
     // Constructors, assignment operators
-    StaticArray () = default;
+    StaticArray () : _data(), _dummy() {}
     StaticArray (const StaticArray&) = default;
     StaticArray& operator= (const StaticArray&) = default;
 

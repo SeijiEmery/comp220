@@ -96,7 +96,6 @@ void _testArrayImpl (const char* name, T init, T first, T second, T third) {
             REQUIRE_GT(second, first);            
         }
         StaticArray<T,N> array;
-        std::fill(&array[0], &array[N], init);
 
         SECTION("Testing StaticArray capacity (should equal " << N << ")") {
             REQUIRE_EQ(array.capacity(), N);
