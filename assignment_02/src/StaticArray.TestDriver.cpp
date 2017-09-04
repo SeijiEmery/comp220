@@ -96,7 +96,16 @@ namespace detail {
 template <typename T, size_t N>
 void _testArrayImpl (const char* name, T init, T first, T second, T third) {
     SECTION("Testing StaticArray<" << name << ", " << N << ">") {
+        SECTION("Sanity check") {
+            REQUIRE_EQ(first, first);
+            REQUIRE_GE(first, first);
+            REQUIRE_LE(first, first);
+            REQUIRE_NE(first, second);
+            REQUIRE_LT(first, second);
+            REQUIRE_GT(second, first);            
+        }
         StaticArray<T,N> array;
+        std::fill(&array[0], &array[N], init);
 
         SECTION("Testing StaticArray capacity (should equal " << N << ")") {
             REQUIRE_EQ(array.capacity(), N);
@@ -117,6 +126,13 @@ void _testArrayImpl (const char* name, T init, T first, T second, T third) {
             array[N-1] = third;
             REQUIRE_EQ(array[N-1], third);
         }
+        SECTION("Testing out-of-bounds array values") {
+            array[-1] = first;
+            REQUIRE_EQ(array[-1], first);
+            REQUIRE_EQ(array[N],  first);
+            REQUIRE_NE(array[N], array[N-1]);
+        }
+
         SECTION("Const-object test") {
             const StaticArray<T, N> array2 = array;
             REQUIRE_EQ(array2[0], first);
