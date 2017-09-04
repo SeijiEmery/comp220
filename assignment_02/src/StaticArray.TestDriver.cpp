@@ -23,22 +23,11 @@ void _testArrayImpl (const char*, T, T, T, T);
 int main () {
     TEST_ARRAY_IMPL(int, 1, 2, 3);
     TEST_ARRAY_IMPL(double, 1.5, 2.5, 3.5);
-    TEST_ARRAY_IMPL(char, 'a', '@', 'Z');
-    TEST_ARRAY_IMPL(std::string, "foo", "bar", "baz");
+    TEST_ARRAY_IMPL(char, '@', 'Z', 'a');
+    TEST_ARRAY_IMPL(std::string, "bar", "baz", "foo");
     std::cout << "All tests passed\n";
     return 0;
 }
-
-
-int cmp (int a, int b)   { return a - b; }
-int cmp (char a, char b) { return a - b; }
-int cmp (double a, double b) {
-    return (fabs(a - b) < 1e-20) ? 0 : a > b ? 1 : -1;
-}
-int cmp (const std::string& a, const std::string& b) {
-    return strcmp(a.c_str(), b.c_str());
-}
-
 
 //
 // Mini-testing framework (©2017 Seiji Emery)
@@ -58,7 +47,7 @@ namespace detail {
     };
     template <typename A, typename B>
     void signalAssertFailure (const char* msg, const A& a, const B& b) {
-        std::cerr << msg << " (" << a << ", " << b << ", cmp: " << cmp(a,b) << "), file " << __FILE__ << ':' << __LINE__ << '\n';
+        std::cerr << msg << " (" << a << ", " << b << "), file " << __FILE__ << ':' << __LINE__ << '\n';
         for (auto i = g_testScope.size(); i --> 0; ) {
             g_testScope[i]();
         }
@@ -71,18 +60,18 @@ namespace detail {
     std::cerr << "in section " << args << '\n'; \
 }))
 
-#define REQUIRE_THAT(expr, cond, a, b) do { \
-    if (!(cond)) { \
+#define REQUIRE_THAT(expr, a, b) do { \
+    if (!(expr)) { \
         detail::signalAssertFailure("Test failed: " #expr, a, b); \
     } \
 } while (0)
 
-#define REQUIRE_EQ(a,b) REQUIRE_THAT(a == b, cmp(a,b) == 0, a, b)
-#define REQUIRE_NE(a,b) REQUIRE_THAT(a != b, cmp(a,b) != 0, a, b)
-#define REQUIRE_GE(a,b) REQUIRE_THAT(a >= b, cmp(a,b) >= 0, a, b)
-#define REQUIRE_LE(a,b) REQUIRE_THAT(a <= b, cmp(a,b) <= 0, a, b)
-#define REQUIRE_GT(a,b) REQUIRE_THAT(a > b, cmp(a,b) > 0, a, b)
-#define REQUIRE_LT(a,b) REQUIRE_THAT(a < b, cmp(a,b) < 0, a, b)
+#define REQUIRE_EQ(a,b) REQUIRE_THAT(a == b, a, b)
+#define REQUIRE_NE(a,b) REQUIRE_THAT(a != b, a, b)
+#define REQUIRE_GE(a,b) REQUIRE_THAT(a >= b, a, b)
+#define REQUIRE_LE(a,b) REQUIRE_THAT(a <= b, a, b)
+#define REQUIRE_GT(a,b) REQUIRE_THAT(a > b, a, b)
+#define REQUIRE_LT(a,b) REQUIRE_THAT(a < b, a, b)
 
 //
 // End mini-testing framework
@@ -92,6 +81,8 @@ namespace detail {
 //
 // Test implementation
 //
+
+#include <algorithm>
 
 template <typename T, size_t N>
 void _testArrayImpl (const char* name, T init, T first, T second, T third) {
@@ -112,7 +103,6 @@ void _testArrayImpl (const char* name, T init, T first, T second, T third) {
         }
         SECTION("Testing StaticArray initial values (should equal " << init << ")") {
             for (auto i = 0; i < array.capacity(); ++i) {
-                std::cout << "i = " << i << ", array[i] = " << array[i] << '\n';
                 REQUIRE_EQ(array[i], init);
             }
         }
@@ -138,6 +128,10 @@ void _testArrayImpl (const char* name, T init, T first, T second, T third) {
             REQUIRE_EQ(array2[0], first);
             REQUIRE_EQ(array[13], second);
             REQUIRE_EQ(array[N-1], third);
+
+            for (auto i = 0; i < array.capacity(); ++i) {
+                REQUIRE_EQ(array[i], array2[i]);
+            }
         }
     }
 }
