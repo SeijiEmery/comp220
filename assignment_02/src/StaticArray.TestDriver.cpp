@@ -20,6 +20,10 @@ void _testArrayImpl (const char*, T, T, T, T);
     _testArrayImpl<T,100>(#T, {}, first, second, third)
 
 int main () {
+    std::cout << "Programmer: Seiji Emery\n";
+    std::cout << "Programmer ID: M00202623\n";
+    std::cout << "File: " __FILE__ "\n";
+
     TEST_ARRAY_IMPL(int, 1, 2, 3);
     TEST_ARRAY_IMPL(double, 1.5, 2.5, 3.5);
     TEST_ARRAY_IMPL(char, '@', 'Z', 'a');
@@ -31,19 +35,29 @@ int main () {
 //
 // Mini-testing framework (©2017 Seiji Emery)
 //
+// Note: super-minimalistic, does not count tests passed / failed, only one test macro (variants of REQUIRE()),
+// calls exit(-1) when a test fails. Tests can be organized via SECTION().
+//
+// Intended to be a quick-and-dirty, <100 LOC replacement for catch.hpp for very small projects.
+//
+
 #include <vector>       // vector
 #include <functional>   // function
 #include <cstdlib>      // exit
 
 // Setup unittest dependencies
 namespace detail {
+    // Used by SECTION(): stack of closures that print out what sections we're inside of.
     std::vector<std::function<void()>> g_testScope;
 
+    // Helper struct for SECTION() (ctor: pushed value to g_testScope, dtor: pops value from g_testScope)
     struct TestScopeInserter {
         TestScopeInserter (std::function<void()> scope) { /*std::cerr << "begin scope: "; scope();*/ g_testScope.push_back(scope); }
         ~TestScopeInserter () { /*std::cerr << "end scope: "; g_testScope.back();*/ g_testScope.pop_back(); }
         operator bool () const { return true; }
     };
+
+    // Helper function for REQURE_**(): prints a message, displays section stack, and exits (-1).
     template <typename A, typename B>
     void signalAssertFailure (const char* msg, const A& a, const B& b) {
         std::cerr << msg << " (" << a << ", " << b << "), file " << __FILE__ << ':' << __LINE__ << '\n';
@@ -55,16 +69,23 @@ namespace detail {
     }
 }; // namespace detail
 
+// Enters a new test section, takes args that are piped to std::cerr (so SECTION("foo = " << foo()) { ... } is valid). 
+// Displays message iff test in enclosed section fails; otherwise is silent.
 #define SECTION(args...) if (auto _  = detail::TestScopeInserter([=](){ \
     std::cerr << "in section " << args << '\n'; \
 }))
 
+// Used to implement require macros: tests that expr is true, and if not, prints out
+// stringified expr, values of a and b (presumably arguments to expr), and calls signalAssertFailure.
 #define REQUIRE_THAT(expr, a, b) do { \
     if (!(expr)) { \
         detail::signalAssertFailure("Test failed: " #expr, a, b); \
     } \
 } while (0)
 
+// Standard REQUIRE / ASSERT test macros. Not using assert() b/c we want more control over output
+// on failure, and including it would be redundant. Split into REQUIRE_EQ, REQUIRE_NE, etc., b/c
+// this is the simplest way to implement a REQUIRE() macro that can stringify args on test failure
 #define REQUIRE_EQ(a,b) REQUIRE_THAT(a == b, a, b)
 #define REQUIRE_NE(a,b) REQUIRE_THAT(a != b, a, b)
 #define REQUIRE_GE(a,b) REQUIRE_THAT(a >= b, a, b)
