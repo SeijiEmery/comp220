@@ -19,6 +19,8 @@
 //
 // I'm not sure whether this will work on windows (it should in some terminals but might not 
 // work in CMD.exe (haven't tested); visual studio may be in the same situation as xcode)
+//
+// To disable text colors, compile with -D NO_ANSI_COLORS
 // ============================================================================
 //
 // Remote source:
@@ -55,34 +57,40 @@ int main () {
 // Minimalistic test 'framework' for comp220. Extremely simple, etc.
 //
 
+#ifndef NO_ANSI_COLORS
+    #define SET_COLOR(code) "\033[" #code "m"
+#else
+    #define SET_COLOR(code) ""
+#endif
+#define CLEAR_COLOR SET_COLOR(0)
+#define SET_RED     SET_COLOR(31)
+#define SET_GREEN   SET_COLOR(32)
+#define SET_YELLOW  SET_COLOR(33)
+
 struct TestInfo {
     unsigned passed = 0, failed = 0;
 } testcase;
 
-#define ASSERT_EQ(a,b) do {\
-    if (a == b) ++testcase.passed, std::cout << "\033[32mPASS\033[0m: " #a " == " #b " (file " __FILE__ ":" << __LINE__ << ")\n";\
-    else        ++testcase.failed, std::cout << "\033[31mFAIL\033[0m: " #a " == " #b " (file " __FILE__ ":" << __LINE__ << ")\n";\
+#define ASSERT_BIN_OP(a,b,op) do {\
+    if ((a) op (b)) ++testcase.passed, std::cout << SET_GREEN "PASS" CLEAR_COLOR ": "; \
+    else            ++testcase.failed, std::cout << SET_RED   "FAIL" CLEAR_COLOR ": "; \
+    std::cout << #a " " #op " " #b " (file " __FILE__ ":" << __LINE__ << ")\n"; \
     std::cout << "    EXPECTED: " #a " = '" << a << "'\n";\
     std::cout << "    GOT:      " #b " = '" << b << "'\n";\
 } while(0)
-
-#define ASSERT_NE(a,b) do {\
-    if (a != b) ++testcase.passed, std::cout << "\033[32mPASS\033[0m: " #a " != " #b " (file " __FILE__ ":" << __LINE__ << ")\n";\
-    else        ++testcase.failed, std::cout << "\033[31mFAIL\033[0m: " #a " != " #b " (file " __FILE__ ":" << __LINE__ << ")\n";\
-    std::cout << "    EXPECTED: " #a " = '" << a << "'\n";\
-    std::cout << "    GOT:      " #b " = '" << b << "'\n";\
-} while(0)
-
-#define SECTION(msg...) if ((std::cout << "\n\033[33m" << msg << "\033[0m\n"), true)
+#define ASSERT_EQ(a,b) ASSERT_BIN_OP(a,b,==)
+#define ASSERT_NE(a,b) ASSERT_BIN_OP(a,b,!=)
+#define SECTION(msg...) if ((std::cout << "\n" SET_YELLOW << msg << CLEAR_COLOR "\n"), true)
 
 static void reportTestResults () {
-    std::cout << (testcase.failed ? "\033[31m" : "\033[32m") << testcase.passed << " / " << (testcase.passed + testcase.failed) << " tests passed\033[0m\n\n";
+    std::cout << (testcase.failed ? SET_RED : SET_GREEN) 
+        << testcase.passed << " / " << (testcase.passed + testcase.failed) 
+        << " tests passed" CLEAR_COLOR "\n\n";
     if (testcase.failed != 0) {
         exit(-1);
     }
     testcase.failed = testcase.passed = 0;
 }
-
 
 //
 // Test implementation
