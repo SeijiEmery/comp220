@@ -30,8 +30,8 @@
 #include <cstring>
 using namespace std;
 
-#include "StaticArray.hpp"
-#include "StaticArray.hpp" // multiple include test
+#include "StaticArray.h"
+#include "StaticArray.h" // multiple include test
 
 template <typename T, size_t N>
 void _testArrayImpl (const char*, T, T, T, T);
