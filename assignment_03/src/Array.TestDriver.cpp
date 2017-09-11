@@ -27,11 +27,10 @@
 
 #include <iostream>     // cerr, cout
 #include <string>       // string
-#include <cstring>
 using namespace std;
 
-#include "StaticArray.h"
-#include "StaticArray.h" // multiple include test
+#include "Array.h"
+#include "Array.h" // multiple include test
 
 template <typename T, size_t N>
 void _testArrayImpl (const char*, T, T, T, T);
@@ -96,7 +95,7 @@ void _testArrayImpl (const char* name, T init, T first, T second, T third) {
             ASSERT_EQ(first, first);
             ASSERT_NE(first, second);   
         }
-        StaticArray<T,N> array;
+        Array<T> array;
 
         SECTION("Testing StaticArray capacity (should equal " << N << ")") {
             ASSERT_EQ(array.capacity(), N);
@@ -133,7 +132,7 @@ void _testArrayImpl (const char* name, T init, T first, T second, T third) {
         }
 
         SECTION("Const-object test") {
-            const StaticArray<T, N> array2 = array;
+            const Array<T> array2 = array;
             ASSERT_EQ(array2[0], first);
             ASSERT_EQ(array[13], second);
             ASSERT_EQ(array[N-1], third);

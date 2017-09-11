@@ -14,7 +14,7 @@ using namespace std;
 
 #include <cstdlib>
 
-#include "StaticArray.h"
+#include "Array.h"
 
 
 int main () {
