@@ -34,25 +34,28 @@ public:
 // Array implementation
 //
 
-// template <typename ForwardIt, typename T>
-// void fill (ForwardIt first, ForwardIt last, const T& value) {
-//     for (; first != last; ++first) {
-//         *first = value;
-//     }
-// }
-// template <typename InputIterator, typename OutputIterator>
-// OutputIterator copy (InputIterator first, InputIterator last, OutputIterator out) {
-//     for (; first != last; ++first, ++out) {
-//         *out = *first;
-//     }
-//     return out;
-// }
+// Helper functions, equivalent to std::copy / std::fill
+namespace detail {
+    template <typename ForwardIt, typename T>
+    void fill (ForwardIt first, ForwardIt last, const T& value) {
+        for (; first != last; ++first) {
+            *first = value;
+        }
+    }
+    template <typename InputIterator, typename OutputIterator>
+    OutputIterator copy (InputIterator first, InputIterator last, OutputIterator out) {
+        for (; first != last; ++first, ++out) {
+            *out = *first;
+        }
+        return out;
+    }
+}; // namespace detail
 
 template <typename T>
 Array<T>::Array () 
     : _data(new T[_capacity+1])
 {
-    fill(&_data[0], &_data[_capacity], T());
+    detail::fill(&(*this)[0], &(*this)[-1], T());
 }
 
 template <typename T>
@@ -60,7 +63,7 @@ Array<T>::Array (const Array<T>& other)
     : _capacity(other._capacity),
       _data(new T[_capacity+1])
 {
-    copy(&other[0], &other[-1], &_data[0]);
+    detail::copy(&other[0], &other[-1], &(*this)[0]);
 }
 
 template <typename T>
@@ -70,7 +73,7 @@ Array<T>& Array<T>::operator= (const Array<T>& other) {
 
         _capacity = other._capacity;
         _data = new T[_capacity+1];
-        copy(&other[0], &other[-1], &_data[0]);
+        detail::copy(&other[0], &other[-1], &(*this)[0]);
     }
     return *this;
 }

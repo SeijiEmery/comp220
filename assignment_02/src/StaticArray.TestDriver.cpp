@@ -73,11 +73,11 @@ struct TestInfo {
 } testcase;
 
 #define ASSERT_BIN_OP(a,b,op) do {\
-if ((a) op (b)) ++testcase.passed, std::cout << SET_GREEN "PASS" CLEAR_COLOR ": "; \
-else            ++testcase.failed, std::cout << SET_RED   "FAIL" CLEAR_COLOR ": "; \
-std::cout << #a " " #op " " #b " (file " __FILE__ ":" << __LINE__ << ")\n"; \
-std::cout << "    EXPECTED: " #a " = '" << a << "'\n";\
-std::cout << "    GOT:      " #b " = '" << b << "'\n";\
+    if ((a) op (b)) ++testcase.passed, std::cout << SET_GREEN "PASS" CLEAR_COLOR ": "; \
+    else            ++testcase.failed, std::cout << SET_RED   "FAIL" CLEAR_COLOR ": "; \
+    std::cout << #a " " #op " " #b " (file " __FILE__ ":" << __LINE__ << ")\n"; \
+    std::cout << "    EXPECTED: " #a " = '" << a << "'\n";\
+    std::cout << "    GOT:      " #b " = '" << b << "'\n";\
 } while(0)
 #define ASSERT_EQ(a,b) ASSERT_BIN_OP(a,b,==)
 #define ASSERT_NE(a,b) ASSERT_BIN_OP(a,b,!=)

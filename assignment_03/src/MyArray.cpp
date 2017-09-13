@@ -16,15 +16,14 @@ using namespace std;
 
 #include "Array.h"
 
-
 int main () {
     std::cout << "Programmer:       Seiji Emery\n";
     std::cout << "Programmer's ID:  M00202623\n";
     std::cout << "File:             " << __FILE__ << '\n' << std::endl;
 
     // Run main program
-    StaticArray<bool, 100>    keys;   
-    StaticArray<double, 100>  values; 
+    Array<bool>    keys;   
+    Array<double>  values; 
     std::string input;
 
     do {
