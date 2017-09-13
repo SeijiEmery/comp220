@@ -21,6 +21,7 @@
 // work in CMD.exe (haven't tested); visual studio may be in the same situation as xcode)
 //
 // To disable text colors, compile with -D NO_ANSI_COLORS
+// To disable unittest indentation, compile with -D NO_TEST_INDENT
 // ============================================================================
 //
 // Remote source:
@@ -50,10 +51,14 @@ using namespace std;
 
 static int g_testIndent = 0;
 static std::ostream& writeln () { 
-    std::cout << "\n" SET_YELLOW;
-    for (auto i = g_testIndent; i --> 0; ) 
-        std::cout << SET_YELLOW "|  ";
-    return std::cout << CLEAR_COLOR; 
+    #ifndef NO_TEST_INDENT
+        std::cout << "\n" SET_YELLOW;
+        for (auto i = g_testIndent; i --> 0; ) 
+            std::cout << "|  ";
+        return std::cout << CLEAR_COLOR; 
+    #else
+        return std::cout << '\n';
+    #endif
 }
 
 struct TestInfo;
@@ -67,14 +72,13 @@ struct TestInfo {
     ~TestInfo () {
         --g_testIndent;        
         if (passed || failed) {
-            writeln() << (failed != 0 ? SET_RED : SET_GREEN) 
-                << passed << " / " << (passed + failed) 
-                << " tests passed" CLEAR_COLOR;
+            writeln() << (failed ? SET_RED : SET_GREEN) 
+                << passed << " / " << (passed + failed) << " tests passed" CLEAR_COLOR;
             writeln();
         }
         if ((g_currentTest = prev)) {
-            if (failed) ++prev->failed;
-            else        ++prev->passed;
+            prev->failed += failed;
+            prev->passed += passed;
         } else if (failed) {
             exit(-1);
         }
