@@ -34,25 +34,6 @@ using namespace std;
 #include "Array.h"
 #include "Array.h" // multiple include test
 
-template <typename T, size_t N>
-void _testArrayImpl (const char*, T, T, T, T);
-
-#define TEST_ARRAY_IMPL(T, first, second, third) \
-    _testArrayImpl<T,100>(#T, {}, first, second, third)
-
-int main () {
-    std::cout << "Programmer: Seiji Emery\n";
-    std::cout << "Programmer ID: M00202623\n";
-    std::cout << "File: " __FILE__ "\n";
-
-    TEST_ARRAY_IMPL(int, 1, 2, 3);
-    TEST_ARRAY_IMPL(double, 1.5, 2.5, 3.5);
-    TEST_ARRAY_IMPL(char, '@', 'Z', 'a');
-    TEST_ARRAY_IMPL(std::string, "bar", "baz", "foo");
-    std::cout << "\033[32mAll tests passed\n\033[0m";
-    return 0;
-}
-
 //
 // Minimalistic test 'framework' for comp220. Extremely simple, etc.
 //
@@ -67,29 +48,75 @@ int main () {
 #define SET_GREEN   SET_COLOR(32)
 #define SET_YELLOW  SET_COLOR(33)
 
+static int g_testIndent = 0;
+static std::ostream& writeln () { 
+    std::cout << "\n" SET_YELLOW;
+    for (auto i = g_testIndent; i --> 0; ) 
+        std::cout << SET_YELLOW "|  ";
+    return std::cout << CLEAR_COLOR; 
+}
+
+struct TestInfo;
+static TestInfo* g_currentTest = nullptr;
+
 struct TestInfo {
     unsigned passed = 0, failed = 0;
-} testcase;
+    TestInfo* prev = nullptr;
+
+    TestInfo (bool) { prev = g_currentTest; g_currentTest = this; ++g_testIndent; }
+    ~TestInfo () {
+        --g_testIndent;        
+        if (passed || failed) {
+            writeln() << (failed != 0 ? SET_RED : SET_GREEN) 
+                << passed << " / " << (passed + failed) 
+                << " tests passed" CLEAR_COLOR;
+            writeln();
+        }
+        if ((g_currentTest = prev)) {
+            if (failed) ++prev->failed;
+            else        ++prev->passed;
+        } else if (failed) {
+            exit(-1);
+        }
+    }
+    operator bool () { return true; }
+};
 
 #define ASSERT_BIN_OP(a,b,op) do {\
-    if ((a) op (b)) ++testcase.passed, std::cout << SET_GREEN "PASS" CLEAR_COLOR ": "; \
-    else            ++testcase.failed, std::cout << SET_RED   "FAIL" CLEAR_COLOR ": "; \
-    std::cout << #a " " #op " " #b " (file " __FILE__ ":" << __LINE__ << ")\n"; \
-    std::cout << "    EXPECTED: " #a " = '" << a << "'\n";\
-    std::cout << "    GOT:      " #b " = '" << b << "'\n";\
+    writeln() << ((a) op (b) ? \
+        (++testcase.passed, SET_GREEN "PASS") : \
+        (++testcase.failed, SET_RED   "FAIL")) \
+        << CLEAR_COLOR ": " #a " " #op " " #b " (file " __FILE__ ":" << __LINE__ << ")";\
+    writeln() << "    EXPECTED: " #a " = '" << a << "'";\
+    writeln() << "    GOT:      " #b " = '" << b << "'";\
 } while(0)
 #define ASSERT_EQ(a,b) ASSERT_BIN_OP(a,b,==)
 #define ASSERT_NE(a,b) ASSERT_BIN_OP(a,b,!=)
-#define SECTION(msg...) if ((std::cout << "\n" SET_YELLOW << msg << CLEAR_COLOR "\n"), true)
+#define SECTION(msg...) if (auto testcase = TestInfo((writeln() << SET_YELLOW << msg << CLEAR_COLOR, true)))
 
-static void reportTestResults () {
-    std::cout << (testcase.failed ? SET_RED : SET_GREEN) 
-        << testcase.passed << " / " << (testcase.passed + testcase.failed) 
-        << " tests passed" CLEAR_COLOR "\n\n";
-    if (testcase.failed != 0) {
-        exit(-1);
+//
+// Main program
+//
+
+template <typename T, size_t N>
+void _testArrayImpl (const char*, T, T, T, T);
+
+#define TEST_ARRAY_IMPL(T, first, second, third) \
+    _testArrayImpl<T,100>(#T, {}, first, second, third)
+
+int main () {
+    std::cout << "Programmer: Seiji Emery\n";
+    std::cout << "Programmer ID: M00202623\n";
+    std::cout << "File: " __FILE__ "\n";
+
+    SECTION("Running Tests") {
+        TEST_ARRAY_IMPL(int, 1, 2, 3);
+        TEST_ARRAY_IMPL(double, 1.5, 2.5, 3.5);
+        TEST_ARRAY_IMPL(char, '@', 'Z', 'a');
+        TEST_ARRAY_IMPL(std::string, "bar", "baz", "foo");
     }
-    testcase.failed = testcase.passed = 0;
+    // std::cout << "\033[32mAll tests passed\n\033[0m";
+    return 0;
 }
 
 //
@@ -97,7 +124,7 @@ static void reportTestResults () {
 //
 template <typename T, size_t N>
 void _testArrayImpl (const char* name, T init, T first, T second, T third) {
-    SECTION("Testing StaticArray<" << name << ", " << N << ">") {
+    SECTION("Testing Array<" << name << ", " << N << ">") {
         SECTION("Sanity check") {
             // ASSERT_NE(first, first);     // To verify that test framework is working, try uncommenting this line (should fail).
             ASSERT_EQ(first, first);
@@ -105,17 +132,17 @@ void _testArrayImpl (const char* name, T init, T first, T second, T third) {
         }
         Array<T> array;
 
-        SECTION("Testing StaticArray capacity (should equal " << N << ")") {
+        SECTION("Testing Array capacity (should equal " << N << ")") {
             ASSERT_EQ(array.capacity(), N);
         }
-        SECTION("Testing StaticArray initial values (should be default-initialized, equal '" << init << "')") {
+        SECTION("Testing Array initial values (should be default-initialized, equal '" << init << "')") {
             int numNonEqualElements = 0;
             for (auto i = 0; i < array.capacity(); ++i) {
                 if (array[i] != init) ++numNonEqualElements;
             }
             ASSERT_EQ(numNonEqualElements, 0);
         }
-        SECTION("Testing StaticArray getter / setter") {
+        SECTION("Testing Array getter / setter") {
             array[0] = first;
             ASSERT_EQ(array[0], first);
 
@@ -152,5 +179,4 @@ void _testArrayImpl (const char* name, T init, T first, T second, T third) {
             ASSERT_EQ(numNonEqualElements, 0);
         }
     }
-    reportTestResults();
 }
