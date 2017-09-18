@@ -71,7 +71,7 @@ int main () {
         if (keys[index]) {
             std::cout << "Found it -- the value stored in " << index << " is " << values[index] << '\n';
         } else {
-            std::cout << "I didn't find it\n";
+            std::cout << "Sorry, but there is no value stored at " << index << '\n';
         }
     } while (1);
     return 0;;

@@ -49,54 +49,76 @@ using namespace std;
 #define SET_GREEN   SET_COLOR(32)
 #define SET_YELLOW  SET_COLOR(33)
 
+namespace mintest {
+
+// global variables (note: NOT threadsafe / reentrant)
+struct TestInfo;
+static TestInfo* g_currentTest = nullptr;
 static int g_testIndent = 0;
+
+// Helper functions for printing + controlling indented, formatted lines
 static std::ostream& writeln () { 
     #ifndef NO_TEST_INDENT
         std::cout << "\n" SET_YELLOW;
-        for (auto i = g_testIndent; i --> 0; ) 
-            std::cout << "|  ";
+        for (auto i = g_testIndent; i --> 0; ) {
+            std::cout << "|  ";      // prints '|' character every x spaces to denote indentation level
+        }  
         return std::cout << CLEAR_COLOR; 
     #else
         return std::cout << '\n';
     #endif
 }
+static void indent () { ++g_testIndent; }
+static void dedent () { --g_testIndent; }
 
-struct TestInfo;
-static TestInfo* g_currentTest = nullptr;
-
+// Stores unittest section info; linked list to previous test sections.
 struct TestInfo {
     unsigned passed = 0, failed = 0;
     TestInfo* prev = nullptr;
 
-    TestInfo (bool) { prev = g_currentTest; g_currentTest = this; ++g_testIndent; }
+    // Indent when section entered; output done via macro + comma operator
+    // since handing <<-ed args would be difficult. 
+    TestInfo (bool) : prev(g_currentTest) { g_currentTest = this; indent(); }
+
     ~TestInfo () {
-        --g_testIndent;        
+        // Dedent, and write section test results when section block ends
+        dedent();        
         if (passed || failed) {
             writeln() << (failed ? SET_RED : SET_GREEN) 
                 << passed << " / " << (passed + failed) << " tests passed" CLEAR_COLOR;
             writeln();
         }
         if ((g_currentTest = prev)) {
+            // If not last section, add test results to previous test section.
             prev->failed += failed;
             prev->passed += passed;
         } else if (failed) {
-            exit(-1);
+            // Otherwise, call exit() if any of the previous tests have failed.
+            exit(-1);   
         }
     }
+    // Always evaluate to true, used since we're declaring sections in an if statement
     operator bool () { return true; }
-};
+}; // struct TestInfo
+}; // namespace mintest
+
+// ASSERT + SECTION macros.
+// SECTION(message << args...): declares a new scoped section (w/ a label etc.; can be formatted via << and macro magic).
+// ASSERT_EQ(a, b):     pretty-printed version of assert(a == b)
+// ASSERT_NE(a, b):     pretty-printed version of assert(a != b)
 
 #define ASSERT_BIN_OP(a,b,op) do {\
-    writeln() << ((a) op (b) ? \
+    mintest::writeln() << ((a) op (b) ? \
         (++testcase.passed, SET_GREEN "PASS") : \
         (++testcase.failed, SET_RED   "FAIL")) \
         << CLEAR_COLOR ": " #a " " #op " " #b " (file " __FILE__ ":" << __LINE__ << ")";\
-    writeln() << "    EXPECTED: " #a " = '" << a << "'";\
-    writeln() << "    GOT:      " #b " = '" << b << "'";\
+    mintest::writeln() << "    EXPECTED: " #b " = '" << b << "'";\
+    mintest::writeln() << "    GOT:      " #a " = '" << a << "'";\
 } while(0)
 #define ASSERT_EQ(a,b) ASSERT_BIN_OP(a,b,==)
 #define ASSERT_NE(a,b) ASSERT_BIN_OP(a,b,!=)
-#define SECTION(msg...) if (auto testcase = TestInfo((writeln() << SET_YELLOW << msg << CLEAR_COLOR, true)))
+#define SECTION(msg...) if (auto testcase = mintest::TestInfo((\
+    mintest::writeln() << SET_YELLOW << msg << CLEAR_COLOR, true)))
 
 //
 // Main program
@@ -134,7 +156,7 @@ void _testArrayImpl (const char* name, T init, T first, T second, T third) {
             ASSERT_EQ(first, first);
             ASSERT_NE(first, second);   
         }
-        Array<T> array;
+        Array<T> array (100);
 
         SECTION("Testing Array capacity (should equal " << N << ")") {
             ASSERT_EQ(array.capacity(), N);
@@ -161,7 +183,7 @@ void _testArrayImpl (const char* name, T init, T first, T second, T third) {
 
             ASSERT_EQ(*ptr, first);
             ASSERT_EQ(array[-1], init);
-            ASSERT_EQ(&(array[N]), &(array[-1]));
+            // ASSERT_EQ(&(array[N]), &(array[-1]));
             ASSERT_EQ(array[N], array[-1]);
             ASSERT_EQ(array[N], init);
 
