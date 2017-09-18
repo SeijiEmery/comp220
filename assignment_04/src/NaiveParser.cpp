@@ -60,6 +60,8 @@ int main () {
     }
     std::cout << '\n';
 
+    // Note: does NOT check for duplicate entires (yet).
+
     // Sort elements (naive)
     std::cout << "Sorting sections...";
     for (auto i = 1; i < numfields; ++i) {
