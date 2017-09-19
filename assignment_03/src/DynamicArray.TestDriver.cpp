@@ -1,7 +1,7 @@
 // Programmer: Seiji Emery
 // Programmer ID: M00202623
 //
-// Array.TestDriver.cpp
+// DynamicArray.TestDriver.cpp
 // Tests our dynamic array implementation.
 //
 // Test implementation: uses custom test macros instead of assert().
@@ -25,15 +25,15 @@
 // ============================================================================
 //
 // Remote source:
-// https://github.com/SeijiEmery/comp220/tree/master/assignment_03/src/Array.TestDriver.cpp
+// https://github.com/SeijiEmery/comp220/tree/master/assignment_03/src/DynamicArray.TestDriver.cpp
 //
 
 #include <iostream>     // cerr, cout
 #include <string>       // string
 using namespace std;
 
-#include "Array.h"
-#include "Array.h" // multiple include test
+#include "DynamicArray.h"
+#include "DynamicArray.h" // multiple include test
 
 //
 // Minimalistic test 'framework' for comp220. Extremely simple, etc.
@@ -150,25 +150,25 @@ int main () {
 //
 template <typename T, size_t N>
 void _testArrayImpl (const char* name, T init, T first, T second, T third) {
-    SECTION("Testing Array<" << name << ", " << N << ">") {
+    SECTION("Testing DynamicArray<" << name << ", " << N << ">") {
         SECTION("Sanity check") {
             // ASSERT_NE(first, first);     // To verify that test framework is working, try uncommenting this line (should fail).
             ASSERT_EQ(first, first);
             ASSERT_NE(first, second);   
         }
-        Array<T> array (100);
+        DynamicArray<T> array (100);
 
-        SECTION("Testing Array capacity (should equal " << N << ")") {
+        SECTION("Testing DynamicArray capacity (should equal " << N << ")") {
             ASSERT_EQ(array.capacity(), N);
         }
-        SECTION("Testing Array initial values (should be default-initialized, equal '" << init << "')") {
+        SECTION("Testing DynamicArray initial values (should be default-initialized, equal '" << init << "')") {
             int numNonEqualElements = 0;
             for (auto i = 0; i < array.capacity(); ++i) {
                 if (array[i] != init) ++numNonEqualElements;
             }
             ASSERT_EQ(numNonEqualElements, 0);
         }
-        SECTION("Testing Array getter / setter") {
+        SECTION("Testing DynamicArray getter / setter") {
             array[0] = first;
             ASSERT_EQ(array[0], first);
 
@@ -190,7 +190,7 @@ void _testArrayImpl (const char* name, T init, T first, T second, T third) {
         }
 
         SECTION("Const-object test") {
-            const Array<T> array2 = array;
+            const DynamicArray<T> array2 = array;
             ASSERT_EQ(array2[0], first);
             ASSERT_EQ(array[13], second);
             ASSERT_EQ(array[N-1], third);
@@ -203,7 +203,7 @@ void _testArrayImpl (const char* name, T init, T first, T second, T third) {
         }
 
         SECTION("Object copy test") {
-            Array<T> array2 (array);
+            DynamicArray<T> array2 (array);
             ASSERT_EQ(array2[0], first);
             ASSERT_EQ(array[13], second);
             ASSERT_EQ(array[N-1], third);
@@ -216,7 +216,7 @@ void _testArrayImpl (const char* name, T init, T first, T second, T third) {
         }
 
         SECTION("Object assignment test") {
-            Array<T> array2; array2 = array;
+            DynamicArray<T> array2; array2 = array;
             ASSERT_EQ(array2[0], first);
             ASSERT_EQ(array[13], second);
             ASSERT_EQ(array[N-1], third);

@@ -1,11 +1,11 @@
 // Programmer: Seiji Emery
 // Programmer ID: M00202623
 //
-// MyArray.cpp
+// MyDynamicArray.cpp
 // Main program for dynamic array implementation (assignment 3).
 //
 // Remote source: 
-// https://github.com/SeijiEmery/comp220/tree/master/assignment_03/src/MyArray.cpp
+// https://github.com/SeijiEmery/comp220/tree/master/assignment_03/src/MyDynamicArray.cpp
 //
 
 #include <iostream>
@@ -14,7 +14,7 @@ using namespace std;
 
 #include <cstdlib>
 
-#include "Array.h"
+#include "DynamicArray.h"
 
 int main () {
     std::cout << "Programmer:       Seiji Emery\n";
@@ -22,8 +22,8 @@ int main () {
     std::cout << "File:             " << __FILE__ << '\n' << std::endl;
 
     // Run main program
-    Array<bool>    keys;   
-    Array<double>  values; 
+    DynamicArray<bool>    keys;   
+    DynamicArray<double>  values; 
     std::string input;
 
     do {

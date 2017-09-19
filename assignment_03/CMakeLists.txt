@@ -15,8 +15,8 @@ else()
 endif()
 
 # executables: main program (myarray) + testdriver
-add_executable(myarray      src/MyArray.cpp)
-add_executable(testdriver   src/Array.TestDriver.cpp)
+add_executable(myarray      src/MyDynamicArray.cpp)
+add_executable(testdriver   src/DynamicArray.TestDriver.cpp)
 # add_test(mytest testdriver)
 
 add_custom_target(test

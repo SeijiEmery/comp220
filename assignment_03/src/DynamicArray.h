@@ -8,22 +8,22 @@
 // https://github.com/SeijiEmery/comp220/tree/master/assignment_03/src/Array.hpp
 //
 
-#ifndef Array_h
-#define Array_h
+#ifndef DynamicArray_h
+#define DynamicArray_h
 #include <cassert>
 
 template <typename T>
-class Array {
+class DynamicArray {
     size_t _capacity = 0;
     T*     _data = nullptr;           // dummy incorporated into array at index N. (reserves N+1 elements for data)
     T      _dummy;
     
 public:
     // Constructors, assignment operators, destructor
-    Array (size_t capacity = 2);
-    Array (const Array<T>&);
-    Array& operator= (const Array&);
-    ~Array ();
+    DynamicArray (size_t capacity = 2);
+    DynamicArray (const DynamicArray<T>&);
+    DynamicArray& operator= (const DynamicArray&);
+    ~DynamicArray ();
 
     // Get / set array capacity
     void capacity (size_t cap);
@@ -35,7 +35,7 @@ public:
 };
 
 //
-// Array implementation
+// DynamicArray implementation
 //
 
 // Helper functions, equivalent to std::copy / std::fill
@@ -67,7 +67,7 @@ namespace detail {
 }; // namespace detail
 
 template <typename T>
-Array<T>::Array (size_t count) 
+DynamicArray<T>::DynamicArray (size_t count) 
     : _capacity(count),
       _data(new T[_capacity]),
       _dummy(T())
@@ -77,7 +77,7 @@ Array<T>::Array (size_t count)
 }
 
 template <typename T>
-Array<T>::Array (const Array<T>& other) 
+DynamicArray<T>::DynamicArray (const DynamicArray<T>& other) 
     : _capacity(other._capacity),
       _data(new T[_capacity]),
       _dummy(T())
@@ -87,7 +87,7 @@ Array<T>::Array (const Array<T>& other)
 }
 
 template <typename T>
-Array<T>& Array<T>::operator= (const Array<T>& other) {
+DynamicArray<T>& DynamicArray<T>::operator= (const DynamicArray<T>& other) {
     if (this != &other) {
         // std::cout << "\033[35mDEALLOC " << _capacity << " (" << _capacity * sizeof(T) << ")\033[0m\n";
         delete[] _data;
@@ -102,7 +102,7 @@ Array<T>& Array<T>::operator= (const Array<T>& other) {
 }
 
 template <typename T>
-Array<T>::~Array () {
+DynamicArray<T>::~DynamicArray () {
     if (_data) {
         delete[] _data;
         // std::cout << "\033[35mDEALLOC " << _capacity << " (" << _capacity * sizeof(T) << ")\033[0m\n";
@@ -110,7 +110,7 @@ Array<T>::~Array () {
 }
 
 template <typename T>
-void Array<T>::capacity (size_t cap) {
+void DynamicArray<T>::capacity (size_t cap) {
     if (cap < 10) cap = 10;
 
     // std::cout << "\033[34mresizing " << _capacity << " => " << cap << "\033[0m\n";
@@ -139,11 +139,11 @@ void Array<T>::capacity (size_t cap) {
 }
 
 template <typename T>
-const T& Array<T>::operator[] (int i) const {
+const T& DynamicArray<T>::operator[] (int i) const {
     return i < 0 || i > _capacity ? _dummy : _data[i];
 }
 template <typename T>
-T& Array<T>::operator[] (int i) {
+T& DynamicArray<T>::operator[] (int i) {
     if (i < 0) return _dummy = {};
     if (i > _capacity) {
         // Resize capacity
@@ -153,4 +153,4 @@ T& Array<T>::operator[] (int i) {
     return _data[i]; 
 }
 
-#endif //Array_h
+#endif //DynamicArray_h
