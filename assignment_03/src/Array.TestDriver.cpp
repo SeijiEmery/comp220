@@ -179,21 +179,44 @@ void _testArrayImpl (const char* name, T init, T first, T second, T third) {
             ASSERT_EQ(array[N-1], third);
         }
         SECTION("Testing out-of-bounds array values") {
+            array.capacity(N);
             auto* ptr = &(array[-1] = first);
 
             ASSERT_EQ(*ptr, first);
             ASSERT_EQ(array[-1], init);
-            // ASSERT_EQ(&(array[N]), &(array[-1]));
-            ASSERT_EQ(array[N], array[-1]);
-            ASSERT_EQ(array[N], init);
-
-            // REQUIRE_EQ(array[-1], first);
-            // REQUIRE_EQ(array[N],  first);
+            // ASSERT_EQ(array[N], array[-1]);
+            // ASSERT_EQ(array[N], init);
             ASSERT_NE(array[N], array[N-1]);
         }
 
         SECTION("Const-object test") {
             const Array<T> array2 = array;
+            ASSERT_EQ(array2[0], first);
+            ASSERT_EQ(array[13], second);
+            ASSERT_EQ(array[N-1], third);
+
+            int numNonEqualElements = 0;            
+            for (auto i = 0; i < array.capacity(); ++i) {
+                if (array[i] != array2[i]) ++numNonEqualElements;
+            }
+            ASSERT_EQ(numNonEqualElements, 0);
+        }
+
+        SECTION("Object copy test") {
+            Array<T> array2 (array);
+            ASSERT_EQ(array2[0], first);
+            ASSERT_EQ(array[13], second);
+            ASSERT_EQ(array[N-1], third);
+
+            int numNonEqualElements = 0;            
+            for (auto i = 0; i < array.capacity(); ++i) {
+                if (array[i] != array2[i]) ++numNonEqualElements;
+            }
+            ASSERT_EQ(numNonEqualElements, 0);
+        }
+
+        SECTION("Object assignment test") {
+            Array<T> array2; array2 = array;
             ASSERT_EQ(array2[0], first);
             ASSERT_EQ(array[13], second);
             ASSERT_EQ(array[N-1], third);

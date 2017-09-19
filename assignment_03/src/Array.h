@@ -69,27 +69,34 @@ namespace detail {
 template <typename T>
 Array<T>::Array (size_t count) 
     : _capacity(count),
-      _data(new T[_capacity])
+      _data(new T[_capacity]),
+      _dummy(T())
 {
+    // std::cout << "\033[36mALLOC " << _capacity << " (" << _capacity * sizeof(T) << ")\033[0m\n";
     detail::fill(&_data[0], &_data[_capacity], T());
 }
 
 template <typename T>
 Array<T>::Array (const Array<T>& other) 
     : _capacity(other._capacity),
-      _data(new T[_capacity])
+      _data(new T[_capacity]),
+      _dummy(T())
 {
+    // std::cout << "\033[36mALLOC " << _capacity << " (" << _capacity * sizeof(T) << ")\033[0m\n";
     detail::copy(&other._data[0], &other._data[_capacity], &_data[0]);
 }
 
 template <typename T>
 Array<T>& Array<T>::operator= (const Array<T>& other) {
-    if (this != &copy) {
+    if (this != &other) {
+        // std::cout << "\033[35mDEALLOC " << _capacity << " (" << _capacity * sizeof(T) << ")\033[0m\n";
         delete[] _data;
 
         _capacity = other._capacity;
         _data = new T[_capacity+1];
-        detail::copy(&other._data[0], &other._data[_capacity], &_data);
+        _dummy = T();
+        // std::cout << "\033[36mALLOC " << _capacity << " (" << _capacity * sizeof(T) << ")\033[0m\n";
+        detail::copy(&other._data[0], &other._data[_capacity], &_data[0]);
     }
     return *this;
 }
@@ -98,6 +105,7 @@ template <typename T>
 Array<T>::~Array () {
     if (_data) {
         delete[] _data;
+        // std::cout << "\033[35mDEALLOC " << _capacity << " (" << _capacity * sizeof(T) << ")\033[0m\n";
     }
 }
 
@@ -110,6 +118,7 @@ void Array<T>::capacity (size_t cap) {
     if (cap > _capacity) {
         // Allocate new array
         T* newData = new T[cap];
+        // std::cout << "\033[36mALLOC " << _capacity << " (" << _capacity * sizeof(T) << ")\033[0m\n";
 
         // Copy existing data
         if (_capacity != 0) {
@@ -117,11 +126,12 @@ void Array<T>::capacity (size_t cap) {
         }
         // Fill remaining data with zeroes
         assert(_capacity < cap);
-        detail::fill(&newData[_capacity+1], &newData[cap], T());
+        detail::fill(&newData[_capacity], &newData[cap], T());
 
         // Delete old array, and replace array / capacity
         if (_data != nullptr) {
             delete[] _data;
+            // std::cout << "\033[35mDEALLOC " << _capacity << " (" << _capacity * sizeof(T) << ")\033[0m\n";
         }
         _data = newData;
         _capacity = cap;
