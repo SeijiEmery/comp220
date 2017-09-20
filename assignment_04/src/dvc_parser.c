@@ -14,9 +14,19 @@ int main () {
     assert(file_size < 64 * 1024 * 1024);   // impose sane limit on file size...
     printf("File has %ld bytes\n", file_size);
 
+    // Load full file to buffer
+    char* data = malloc(file_size + 1);
+    {
+        size_t rv = fread(data, sizeof(data[0]), file_size, file);
+        if (rv != file_size) {
+            fprintf(stderr, "Could not read file: %lu", rv);
+            exit(rv);
+        }
+        data[file_size] = '\0';
+    }
+    printf("%s",data);
 
 
-
-    fclose(file);
+    free(data);
     return 0;
 }
