@@ -24,8 +24,15 @@ int main () {
         }
         data[file_size] = '\0';
     }
-    printf("%s",data);
+    // printf("%s",data);
 
+    // Parse lines...
+    char* s = data; size_t nlines = 0;
+    for (; *s != '\0'; ++s) {
+        while (*s && *s != '\n') ++s;
+        ++nlines;
+    }
+    printf("%ld lines\n", nlines);
 
     free(data);
     return 0;
