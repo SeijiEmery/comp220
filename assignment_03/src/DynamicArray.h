@@ -22,7 +22,7 @@ public:
     // Constructors, assignment operators, destructor
     DynamicArray (size_t capacity = 2);
     DynamicArray (const DynamicArray<T>&);
-    DynamicArray& operator= (const DynamicArray&);
+    DynamicArray& operator= (const DynamicArray<T>&);
     ~DynamicArray ();
 
     // Get / set array capacity
@@ -93,7 +93,7 @@ DynamicArray<T>& DynamicArray<T>::operator= (const DynamicArray<T>& other) {
         delete[] _data;
 
         _capacity = other._capacity;
-        _data = new T[_capacity+1];
+        _data = new T[_capacity];
         _dummy = T();
         // std::cout << "\033[36mALLOC " << _capacity << " (" << _capacity * sizeof(T) << ")\033[0m\n";
         detail::copy(&other._data[0], &other._data[_capacity], &_data[0]);
@@ -105,6 +105,7 @@ template <typename T>
 DynamicArray<T>::~DynamicArray () {
     if (_data) {
         delete[] _data;
+        _data = nullptr;
         // std::cout << "\033[35mDEALLOC " << _capacity << " (" << _capacity * sizeof(T) << ")\033[0m\n";
     }
 }
@@ -131,6 +132,7 @@ void DynamicArray<T>::capacity (size_t cap) {
         // Delete old array, and replace array / capacity
         if (_data != nullptr) {
             delete[] _data;
+            _data = nullptr;
             // std::cout << "\033[35mDEALLOC " << _capacity << " (" << _capacity * sizeof(T) << ")\033[0m\n";
         }
         _data = newData;
@@ -145,7 +147,7 @@ const T& DynamicArray<T>::operator[] (int i) const {
 template <typename T>
 T& DynamicArray<T>::operator[] (int i) {
     if (i < 0) return _dummy = {};
-    if (i > _capacity) {
+    if (i >= _capacity) {
         // Resize capacity
         capacity(detail::nextPow2(i+1));
         assert(_capacity >= i);

@@ -2,20 +2,32 @@
 #include <iostream>
 #include <fstream>
 #include <string>
-#include <algorithm>
 using namespace std;
 
-#include "../../assignment_03/src/Array.h"
+#include "../../assignment_03/src/DynamicArray.h"
 
+
+#ifdef STD_BITSET
+#include <vector>
 class Bitset {
-    Array<size_t> array;
-    enum { BITS = 8 * sizeof(size_t) };
+    std::vector<bool> values;
+public:
+    Bitset (size_t count) : values(count) {}
+    void set   (size_t i) { if (i >= values.size()) values.resize(i+1); values[i] = true; }
+    void clear (size_t i) { if (i >= values.size()) values.resize(i+1); values[i] = false; }
+    bool get   (size_t i) { return i < values.size() ? values[i] : false; }
+};
+#else
+class Bitset {
+    DynamicArray<size_t> array;
+    enum { BITS = 4 * sizeof(size_t) };
 public:
     Bitset (size_t count) : array(count / BITS + 1) {}
     void set   (size_t i) { array[i / BITS] |=  (1 << (i % BITS)); }
     void clear (size_t i) { array[i / BITS] &= ~(1 << (i % BITS)); }
     bool get   (size_t i) { return array[i / BITS] & (1 << (i % BITS)); }
 };
+#endif
 
 struct Field { 
     std::string name; 
@@ -28,24 +40,24 @@ struct Field {
 
 #define PACK_STR_4(a,b,c,d) \
     (((uint32_t)d << 24) | ((uint32_t)c << 16) | ((uint32_t)b << 8) | ((uint32_t)a))
-    // (((uint32_t)a << 24) | ((uint32_t)b << 16) | ((uint32_t)c << 8) | ((uint32_t)d))
 
 int main () {
     ifstream file { "../data/dvc-schedule.txt" };
     string line;
 
-    std::cout << "Parsing lines...";
+    ofstream duplicate_log { "duplicates.cpp.txt" };
 
-    // Array<string> lines (1); size_t count = 0;
+    std::cout << "Parsing lines...";
 
     size_t dupcount = 0, uniquecount = 0;
 
     Bitset hashset (1);
-    Array<Field> fields; size_t numfields = 0; size_t linecount = 0;
+    DynamicArray<Field> fields; size_t numfields = 0; size_t linecount = 0;
     while (getline(file, line)) {
         char* s = const_cast<char*>(line.c_str());
-        // std::cout << s << '\n';
 
+        // For each line, parse + assemble a unique hash code:
+        // 1. 2-bit code for semester (Spring = 0, Summer = 1, Fall = 2, Winter = 3)
         size_t semester = 0;
         switch (((uint32_t*)s)[0]) {
             case PACK_STR_4('S','p','r','i'): assert((((uint32_t*)s)[1] & 0x00FFFFFF) == PACK_STR_4('n','g',' ','\0')); s += 7; semester = 0; break;
@@ -54,31 +66,34 @@ int main () {
             case PACK_STR_4('W','i','n','t'): assert((((uint32_t*)s)[1] & 0x00FFFFFF) == PACK_STR_4('e','r',' ','\0')); s += 7; semester = 3; break;
             default: if (linecount == 0) { continue; } else { assert(0); }
         }
-        // std::cout << "Season = " << hash;
+
+        // 2. 5-bit hash code for year, normalized to starting year (2000 = 0).
+        //    This is sufficient to accomodate years in range [2000, 2032), and will fail / hash collide after that
         assert(isnumber(s[0]) && s[4] == '\t');
-        size_t hash = semester | (((atoi(s) - 2001) & 31) << 2);
-        // std::cout << "YEAR_CODE: 0x" << std::hex << hash;
-        // std::cout << ", year = " << ((atoi(s) - 2001) & 32);
+        size_t hash = semester | (((atoi(s) - 2000) & 31) << 2);
         s += 5;
 
+        // 3. n-bit section # (4 digits => ~14 bits)
         assert(isnumber(s[0]) && s[4] == '\t');
         size_t code = atoi(s);
-        hash |= (code << 7);
+        hash |= (code << 8);
         s += 5;
-        // std::cout << " CLASS_ID: 0x" << std::hex << code << " HASH: 0x" << std::hex << hash << ' ';
-        // std::cout << "hash = " << hash << ", line = " << line << '\n';
 
+        // We then filter duplicates by checking our hashset (implemented as a bitset): 
+        // if bit has been set, it's a duplicate, if not, add it to the hash set and continue.
         if (hashset.get(hash)) {
-            // std::cout << "DUPLICATE: " << line << '\n';
+            // duplicate_log << "DUPLICATE: " << hash << " '" << line << "'\n";
             ++dupcount;
             continue;
         } else {
+            // duplicate_log << "INSERTING: " << hash << " '" << line << "'\n";
             ++uniquecount;
+            hashset.set(hash);
         }
-        // std::cout << "INSERTING: " << line << '\n';
-        hashset.set(hash);
 
-        #ifdef GROUP_SUBJECTS
+        // Compile-time switch: if compiled with -D SELECT_COURSES, groups by subject code,
+        // if not, groups by course code (subject code + course number)
+        #ifndef SELECT_COURSES
             #define TERMINAL '-'
         #else
             #define TERMINAL '\t'
@@ -101,16 +116,16 @@ int main () {
         }
         fields[numfields++] = Field({ s }, 1);
         end:
-        // Update progress thingy...
-        if (((++linecount) % 2000) == 0) {
-            std::cout << '.'; std::cout.flush();
+
+        // Update progress counter
+        if (((++linecount) % 1000) == 0) {
+            // std::cout << '.'; std::cout.flush();
         }
     }
     std::cout << '\n';
 
-    std::cout << "parsed " << uniquecount << " fields, removed " << dupcount << " duplicates\n";
 
-    // Sort elements (naive)
+    // Sort elements (naive / bubble sort)
     std::cout << "Sorting sections...";
     for (auto i = 1; i < numfields; ++i) {
         for (auto j = i; j < numfields; ++j) {
@@ -120,7 +135,7 @@ int main () {
         }
         // Update progress thingy...
         if ((i % (numfields / 25)) == 0) { 
-            std::cout << '.'; std::cout.flush(); 
+            // std::cout << '.'; std::cout.flush(); 
         }
     }
     std::cout << '\n';    
@@ -133,7 +148,9 @@ int main () {
         }
         totalSections += fields[i].count;
     }
+    std::cout << '\n';
     std::cout << "total: " << totalSections << " sections\n";
+    std::cout << "parsed " << uniquecount << " fields, removed " << dupcount << " duplicates\n";
     std::cout << "lines: " << linecount << "\n";
 }
 
