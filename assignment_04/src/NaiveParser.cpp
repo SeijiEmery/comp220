@@ -1,10 +1,51 @@
+// Programmer: Seiji Emery
+// Programmer ID: M00202623
+//
+// DvcSchedule4.cpp
+//
 
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <chrono>
 using namespace std;
 
-#include "../../assignment_03/src/DynamicArray.h"
+#include "DynamicArray.h"
+
+static size_t g_num_allocations = 0;
+static size_t g_num_frees       = 0;
+
+static size_t g_allocated_mem = 0;
+static size_t g_freed_mem = 0;
+
+void* operator new (size_t size) throw(std::bad_alloc) {
+    g_allocated_mem += size;
+    ++g_num_allocations;
+    size_t* mem = (size_t*)std::malloc(size + sizeof(size_t));
+    if (!mem) {
+        throw std::bad_alloc();
+    }
+    mem[0] = size;
+    return (void*)(&mem[1]);
+}
+void operator delete (void* mem) throw() {
+    auto ptr = &((size_t*)mem)[-1];
+    g_freed_mem += ptr[0];
+    ++g_num_frees;
+    std::free(ptr);
+}
+struct PerfLogger {
+    std::chrono::high_resolution_clock::time_point t0;
+
+    PerfLogger () : t0(std::chrono::high_resolution_clock::now()) {}
+    ~PerfLogger () {
+        using namespace std::chrono;
+        auto t1 = high_resolution_clock::now();
+        std::cout << "\nUsed  memory: " << ((double)g_allocated_mem) * 1e-6 << " MB (" << g_num_allocations << " allocations)\n";
+        std::cout << "Freed memory: "   << ((double)g_freed_mem) * 1e-6     << " MB (" << g_num_frees       << " deallocations)\n";
+        std::cout << "Ran in " << duration_cast<duration<double>>(t1 - t0).count() << " seconds\n";
+    }
+} g_perf_logger;
 
 
 #ifdef STD_BITSET
@@ -29,30 +70,76 @@ public:
 };
 #endif
 
-struct Field { 
+static void unittest_bitset () {
+    Bitset bitset (10);
+    bitset.set(7);
+    for (auto i = 0; i < 16; ++i) {
+        assert(bitset.get(i) == (i == 7));
+    }
+    bitset.set(8);
+    for (auto i = 0; i < 16; ++i) {
+        assert(bitset.get(i) == (i == 7 || i == 8));
+    }
+    bitset.set(9);
+    for (auto i = 0; i < 16; ++i) {
+        assert(bitset.get(i) == (i == 7 || i == 8 || i == 9));
+    }
+    bitset.clear(9);
+    bitset.clear(7);
+    bitset.set(31);
+    for (auto i = 0; i < 32; ++i) {
+        assert(bitset.get(i) == (i == 8 || i == 31));
+    }
+    bitset.set(2417491);
+    for (auto i = (2417491 / 8) * 8; i < (2417491 / 8 + 1) * 8; ++i) {
+        assert(bitset.get(i) == (i == 2417491));
+    }
+}
+
+struct Subject { 
     std::string name; 
     size_t count = 0; 
 
-    Field () = default;
-    Field (decltype(name) name, decltype(count) count) 
+    Subject () = default;
+    Subject (decltype(name) name, decltype(count) count)
         : name(name), count(count) {}
 };
 
 #define PACK_STR_4(a,b,c,d) \
     (((uint32_t)d << 24) | ((uint32_t)c << 16) | ((uint32_t)b << 8) | ((uint32_t)a))
 
-int main () {
-    ifstream file { "../data/dvc-schedule.txt" };
-    string line;
+int main (int argc, const char** argv) {
+    std::cout << "Programmer: Seiji Emery\n"
+              << "Programmer's id: M00202623\n"
+              << "File: " __FILE__ "\n\n";
 
-    ofstream duplicate_log { "duplicates.cpp.txt" };
+    const char* path = nullptr;
+    switch (argc) {
+        case 1: path = "dvc-schedule.txt"; break;
+        case 2: path = argv[0]; break;
+        default: {
+            std::cerr << "usage: " << argv[0] << " [path-to-dvc-schedule.txt]" << std::endl;
+            exit(-1);
+        }
+    }
 
-    std::cout << "Parsing lines...";
+    ifstream file { path };
+    if (!file) {
+        std::cerr << "Could not open file: '" << path << "'" << std::endl;
+        exit(-1);
+    }
+
+    DynamicArray<Subject> subjects;
+    size_t numsubjects = 0, linecount = 0;
+    Bitset hashset (1);
 
     size_t dupcount = 0, uniquecount = 0;
+    #ifdef LOG_DUPLICATES
+        ofstream duplicate_log { "duplicates.cpp.txt" };
+    #endif
 
-    Bitset hashset (1);
-    DynamicArray<Field> fields; size_t numfields = 0; size_t linecount = 0;
+    std::cout << "Parsing lines...";
+    string line;
     while (getline(file, line)) {
         char* s = const_cast<char*>(line.c_str());
 
@@ -108,18 +195,18 @@ int main () {
             }
         }
         // std::cout << "SUBJECT: " << s << '\n';
-        for (auto k = 0; k < numfields; ++k) {
-            if (strcmp(fields[k].name.c_str(), s) == 0) {
-                ++fields[k].count;
+        for (auto k = 0; k < numsubjects; ++k) {
+            if (strcmp(subjects[k].name.c_str(), s) == 0) {
+                ++subjects[k].count;
                 goto end;
             }
         }
-        fields[numfields++] = Field({ s }, 1);
+        subjects[numsubjects++] = Subject({ s }, 1);
         end:
 
         // Update progress counter
-        if (((++linecount) % 1000) == 0) {
-            // std::cout << '.'; std::cout.flush();
+        if (((++linecount) % 1024) == 0) {
+            std::cout << '.'; std::cout.flush();
         }
     }
     std::cout << '\n';
@@ -127,36 +214,28 @@ int main () {
 
     // Sort elements (naive / bubble sort)
     std::cout << "Sorting sections...";
-    for (auto i = 1; i < numfields; ++i) {
-        for (auto j = i; j < numfields; ++j) {
-            if (fields[i].name > fields[j].name) {
-                swap(fields[i], fields[j]);
+    for (auto i = 1; i < numsubjects; ++i) {
+        for (auto j = i; j < numsubjects; ++j) {
+            if (subjects[i].name > subjects[j].name) {
+                swap(subjects[i], subjects[j]);
             }
         }
         // Update progress thingy...
-        if ((i % (numfields / 25)) == 0) { 
-            // std::cout << '.'; std::cout.flush(); 
+        if ((i % (numsubjects / 32)) == 0) { 
+            std::cout << '.'; std::cout.flush(); 
         }
     }
     std::cout << '\n';    
 
     // Display elements
     size_t totalSections = 0;
-    for (auto i = 1; i < numfields; ++i) {
-        if (fields[i].count) {
-            std::cout << fields[i].name << ", " << fields[i].count << " sections\n";
+    for (auto i = 1; i < numsubjects; ++i) {
+        if (subjects[i].count) {
+            std::cout << subjects[i].name << ", " << subjects[i].count << " sections\n";
         }
-        totalSections += fields[i].count;
+        totalSections += subjects[i].count;
     }
     std::cout << '\n';
     std::cout << "total: " << totalSections << " sections\n";
     std::cout << "parsed " << uniquecount << " fields, removed " << dupcount << " duplicates\n";
-    std::cout << "lines: " << linecount << "\n";
 }
-
-
-
-
-
-
-
