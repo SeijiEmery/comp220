@@ -4,11 +4,33 @@
 // DvcSchedule4.cpp
 //
 // Big data assignment part 1. Or parts 1-N, as it were – what do you expect,
-// for me to go back and write a slow version?
+// for me to go back and write a slow version? B/c it's actually much simpler 
+// to use a bitset for duplicate removal...
 //
 // This program reads a course listing file in the working directory (dvc-schedule.txt),
 // calculates the number of unique class sections for each subject, and displays those
 // sorted alphabetically.
+//
+// Program does not do any unnecessary work (eg. fully parsing + storing all fields), and does not
+// validate input, which is assumed to be machine generated and to follow very specific formatting rules.
+// If input does not follow these rules, the program will crash (but will crash early using 
+// asserts(), etc; if compiled without asserts in eg. release (and given bad input) behavior is undefined.
+// Any parser built on strtok() (this is not, but techniques are similar) would be as fragile + pedantic 
+// (but fast) though.
+//
+// Program is also fast, as I've "cheated" and just built a fully optimized version (I discovered a neat
+// way to uniquely hash the data entires, which means duplicates can be removed using a trivial hashset;
+// I also implemented a bitset to cut down on memory usage).
+//
+// All requirements have been followed: output is correct, no STL containers were used. The DynamicArray
+// from assignment 3 is the main, and only real data structure used (though I did layer a BitSet on top of that;
+// its implementation is trivial and leverages DynamicArray features). The program does print some additional 
+// info at the end: # of parsed fields and duplicates, and some performance / profiling info for memory usage 
+// (all allocations / deallocations), and the time it took to run.
+//
+//
+// Remote source / version history:
+// https://github.com/SeijiEmery/comp220/blob/master/assignment_04/src/DvcSchedule4.cpp
 //
 // Compile switches / flags:
 //  –D LOG_DUPLICATES: if enabled, prints debugging info to a file called duplicates.cpp.txt
