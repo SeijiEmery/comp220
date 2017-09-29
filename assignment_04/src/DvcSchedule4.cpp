@@ -44,8 +44,48 @@
 #include <chrono>
 using namespace std;
 
+#include <cstring>
+
 // Our dynamic array impl from assignment 3.
 #include "DynamicArray.h"
+
+uint32_t murmur3_32(const uint8_t* key, size_t len, uint32_t seed) {
+  uint32_t h = seed;
+  if (len > 3) {
+    const uint32_t* key_x4 = (const uint32_t*) key;
+    size_t i = len >> 2;
+    do {
+      uint32_t k = *key_x4++;
+      k *= 0xcc9e2d51;
+      k = (k << 15) | (k >> 17);
+      k *= 0x1b873593;
+      h ^= k;
+      h = (h << 13) | (h >> 19);
+      h = (h * 5) + 0xe6546b64;
+    } while (--i);
+    key = (const uint8_t*) key_x4;
+  }
+  if (len & 3) {
+    size_t i = len & 3;
+    uint32_t k = 0;
+    key = &key[i - 1];
+    do {
+      k <<= 8;
+      k |= *key--;
+    } while (--i);
+    k *= 0xcc9e2d51;
+    k = (k << 15) | (k >> 17);
+    k *= 0x1b873593;
+    h ^= k;
+  }
+  h ^= len;
+  h ^= h >> 16;
+  h *= 0x85ebca6b;
+  h ^= h >> 13;
+  h *= 0xc2b2ae35;
+  h ^= h >> 16;
+  return h;
+}
 
 
 // Bitset data structure, used to implement a simple hashset for duplicate element removal
@@ -108,6 +148,8 @@ int main (int argc, const char** argv) {
     // Array to store subject counts
     DynamicArray<Subject> subjects;
     size_t numsubjects = 0, linecount = 0;
+    size_t hashcollisions = 0, hashcollisioncount = 0;
+    size_t num_unique_primary_hashes = 0, num_unique_secondary_hashes = 0;
 
     // Bitset used to check for object duplicates. For this we use a perfect hashing algorithm, see bleow.
     Bitset hashset (1);
@@ -178,27 +220,71 @@ int main (int argc, const char** argv) {
         // Due to how data is formatted, can either get subject code (subject only) or course id
         // (subject code + course #) by scanning to either the first '-' or '\t' (see above).
         assert(isupper(s[0]));
-        size_t str_hash = 0;
-        char* tok = s;
-        for (; *tok != '\0'; ++tok) {
-            if (*tok == TERMINAL) {
-                *tok = '\0';
-                break;
-            } else {
-                assert(*tok >= 'A' && *tok <= 'Z');
-                str_hash = str_hash * 26 + (*tok - 'A');
-            }
-        }
 
-        str_hash %= 1024;
-        while (subjects[str_hash].hashid != str_hash && subjects[str_hash].count != 0) {
-            str_hash = (str_hash + 1) % 1024;
-        }
-        if (subjects[str_hash].hashid != str_hash) {
+        // #ifdef REVERSE_HASH
+        //     size_t str_hash = 0;
+        //     char* tok = s;
+        //     for (; *tok != '\0'; ++tok) {
+        //         if (*tok == TERMINAL) {
+        //             *tok = '\0';
+        //             break;
+        //         } else {
+        //             assert(*tok >= 'A' && *tok <= 'Z');
+        //             str_hash = str_hash * 26 + (*tok - 'A');
+        //         }
+        //     }
+        // #else
+            char* end = strchr(s, '-');
+            assert(end != nullptr && end != s);
+            *end = '\0';
+            size_t str_hash = (size_t)murmur3_32((uint8_t*)s, (size_t)end - (size_t)s, 0);
+
+            // assert(*s != '\0');
+            // size_t str_hash = 0;
+            // for (; end --> s; --end) {
+            //     // str_hash *= 26;
+            //     str_hash *= 17;
+            //     str_hash += (*s - 'A');
+            //     // str_hash = str_hash * 26 + (*s - 'A');
+            // }
+        // #endif
+
+        #define HASHTABLE_SIZE (1024)
+
+        str_hash %= HASHTABLE_SIZE;
+        if (subjects[str_hash].count == 0) {
+            ++num_unique_primary_hashes;
+            subjects[str_hash].name = s;
             subjects[str_hash].hashid = str_hash;
-            subjects[str_hash].name   = s;
+        } else if (subjects[str_hash].name != s) {
+            ++hashcollisions;
+            // std::cout << "Hash collision! '" << s << "' (" << str_hash << "), '" 
+            //     << subjects[str_hash].name << "' (" << subjects[str_hash].hashid << ")\n";
+            do {
+                str_hash = (str_hash + 1) % HASHTABLE_SIZE;
+                ++hashcollisioncount;
+            } while (subjects[str_hash].count != 0 && subjects[str_hash].name != s);
+
+            if (subjects[str_hash].count == 0) {
+                ++num_unique_secondary_hashes;
+            }
+            subjects[str_hash].name = s;
+            subjects[str_hash].hashid = str_hash;
         }
         ++subjects[str_hash].count;
+
+        // bool didhashcollide = false;
+        // while (strcmp(subjects[str_hash].name.c_str(), s) != 0 && subjects[str_hash].count != 0) {
+        //     str_hash = (str_hash + 1) % HASHTABLE_SIZE;
+        //     ++hashcollisioncount;
+        //     didhashcollide = true;   
+        // }
+        // if (didhashcollide) ++hashcollisions;
+        // if (subjects[str_hash].hashid != str_hash) {
+        //     subjects[str_hash].hashid = str_hash;
+        //     subjects[str_hash].name   = s;
+        // }
+        // ++subjects[str_hash].count;
 
         // // Search for subject in subjects list; either increment its count (if found), or
         // // add it to the end of the list with count 1.
@@ -217,31 +303,40 @@ int main (int argc, const char** argv) {
     }
     std::cout << '\n';
 
+    int swapCount = 0;
+
+
     numsubjects = 0;
-    for (size_t i = 0, j = 0; i < 1024; ++i) {
+    for (size_t i = 0, j = 0; i < HASHTABLE_SIZE; ++i) {
         if (subjects[i].count != 0) {
             if (i != numsubjects) {
                 std::swap(subjects[i], subjects[numsubjects]);
+                ++swapCount;
             }
             ++numsubjects;
         }
     }
-    int swapCount = 0;
-
-    // Sort elements (naive / bubble sort)
-    std::cout << "Sorting sections...";
     for (auto i = 1; i < numsubjects; ++i) {
-        for (auto j = i; j < numsubjects; ++j) {
-            if (subjects[i].name > subjects[j].name) {
-                swap(subjects[i], subjects[j]);
-                ++swapCount;
-            }
-        }
-        // Update progress thingy...
-        if ((i % (numsubjects / 32)) == 0) { 
-            // std::cout << '.'; std::cout.flush(); 
+        for (auto j = i; j > 0 && subjects[j-1].name > subjects[j].name; --j) {
+            swap(subjects[i], subjects[j]);
+            ++swapCount;
         }
     }
+
+    // Sort elements (naive / bubble sort)
+    // std::cout << "Sorting sections...";
+    // for (auto i = 1; i < numsubjects; ++i) {
+    //     for (auto j = i; j < numsubjects; ++j) {
+    //         if (subjects[i].name > subjects[j].name) {
+    //             swap(subjects[i], subjects[j]);
+    //             ++swapCount;
+    //         }
+    //     }
+    //     // Update progress thingy...
+    //     if ((i % (numsubjects / 32)) == 0) { 
+    //         // std::cout << '.'; std::cout.flush(); 
+    //     }
+    // }
     std::cout << '\n';    
 
     // Display sorted results
@@ -256,6 +351,12 @@ int main (int argc, const char** argv) {
     std::cout << "total: " << totalSections << " sections, " << numsubjects << " subjects\n";
     std::cout << "parsed " << uniquecount << " fields, removed " << dupcount << " duplicates\n";
     std::cout << "sorting used " << swapCount << " swaps\n";
+    std::cout << "hashtable size: " << HASHTABLE_SIZE << " => " 
+        << num_unique_primary_hashes << " primary hashes, "
+        << num_unique_secondary_hashes << " secondary hashes\n";
+    std::cout << "hashcollisions: " << hashcollisions
+        << ", avg distance " << ((double)hashcollisioncount) / ((double)hashcollisions) 
+        << ", avg per item " << ((double)hashcollisioncount) / ((double)uniquecount) << "\n";
 }
 
 // Simple unittests for bitset (assumes that our already tested DynamicArray works properly...)
