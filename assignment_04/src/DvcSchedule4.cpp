@@ -64,7 +64,8 @@ public:
 // Small data structure, used to store a subject name + count pair.
 struct Subject { 
     std::string name; 
-    size_t count = 0; 
+    size_t count = 0;
+    size_t hashid = 0;
 
     Subject () = default;
     Subject (decltype(name) name, decltype(count) count)
@@ -177,29 +178,55 @@ int main (int argc, const char** argv) {
         // Due to how data is formatted, can either get subject code (subject only) or course id
         // (subject code + course #) by scanning to either the first '-' or '\t' (see above).
         assert(isupper(s[0]));
+        size_t str_hash = 0;
         char* tok = s;
         for (; *tok != '\0'; ++tok) {
             if (*tok == TERMINAL) {
                 *tok = '\0';
                 break;
+            } else {
+                assert(*tok >= 'A' && *tok <= 'Z');
+                str_hash = str_hash * 26 + (*tok - 'A');
             }
         }
-        // Search for subject in subjects list; either increment its count (if found), or
-        // add it to the end of the list with count 1.
-        for (auto k = 0; k < numsubjects; ++k) {
-            if (strcmp(subjects[k].name.c_str(), s) == 0) {
-                ++subjects[k].count;
-                goto end;
-            }
+
+        str_hash %= 1024;
+        while (subjects[str_hash].hashid != str_hash && subjects[str_hash].count != 0) {
+            str_hash = (str_hash + 1) % 1024;
         }
-        subjects[numsubjects++] = Subject({ s }, 1);
+        if (subjects[str_hash].hashid != str_hash) {
+            subjects[str_hash].hashid = str_hash;
+            subjects[str_hash].name   = s;
+        }
+        ++subjects[str_hash].count;
+
+        // // Search for subject in subjects list; either increment its count (if found), or
+        // // add it to the end of the list with count 1.
+        // for (auto k = 0; k < numsubjects; ++k) {
+        //     if (strcmp(subjects[k].name.c_str(), s) == 0) {
+        //         ++subjects[k].count;
+        //         goto end;
+        //     }
+        // }
+        // subjects[numsubjects++] = Subject({ s }, 1);
     end:
         // Update progress counter
         if (((++linecount) % 1024) == 0) {
-            std::cout << '.'; std::cout.flush();
+            // std::cout << '.'; std::cout.flush();
         }
     }
     std::cout << '\n';
+
+    numsubjects = 0;
+    for (size_t i = 0, j = 0; i < 1024; ++i) {
+        if (subjects[i].count != 0) {
+            if (i != numsubjects) {
+                std::swap(subjects[i], subjects[numsubjects]);
+            }
+            ++numsubjects;
+        }
+    }
+    int swapCount = 0;
 
     // Sort elements (naive / bubble sort)
     std::cout << "Sorting sections...";
@@ -207,11 +234,12 @@ int main (int argc, const char** argv) {
         for (auto j = i; j < numsubjects; ++j) {
             if (subjects[i].name > subjects[j].name) {
                 swap(subjects[i], subjects[j]);
+                ++swapCount;
             }
         }
         // Update progress thingy...
         if ((i % (numsubjects / 32)) == 0) { 
-            std::cout << '.'; std::cout.flush(); 
+            // std::cout << '.'; std::cout.flush(); 
         }
     }
     std::cout << '\n';    
@@ -225,8 +253,9 @@ int main (int argc, const char** argv) {
         totalSections += subjects[i].count;
     }
     std::cout << '\n';
-    std::cout << "total: " << totalSections << " sections\n";
+    std::cout << "total: " << totalSections << " sections, " << numsubjects << " subjects\n";
     std::cout << "parsed " << uniquecount << " fields, removed " << dupcount << " duplicates\n";
+    std::cout << "sorting used " << swapCount << " swaps\n";
 }
 
 // Simple unittests for bitset (assumes that our already tested DynamicArray works properly...)
@@ -303,7 +332,7 @@ struct PerfLogger {
         auto t1 = high_resolution_clock::now();
         std::cout << "\nUsed  memory: " << ((double)g_allocated_mem) * 1e-6 << " MB (" << g_num_allocations << " allocations)\n";
         std::cout << "Freed memory: "   << ((double)g_freed_mem) * 1e-6     << " MB (" << g_num_frees       << " deallocations)\n";
-        std::cout << "Ran in " << duration_cast<duration<double>>(t1 - t0).count() << " seconds\n";
+        std::cout << "Ran in " << duration_cast<duration<double>>(t1 - t0).count() * 1e3 << " ms\n";
     }
 } g_perf_logger;
 
