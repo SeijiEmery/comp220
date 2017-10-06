@@ -139,7 +139,7 @@ void _testStackImpl (const char* stackName, const char* typeName, T init, T firs
         SECTION("Sanity check") {
             // ASSERT_NE(first, first);     // To verify that test framework is working, try uncommenting this line (should fail).
             ASSERT_EQ(first, first);
-            ASSERT_NE(first, second);   
+            ASSERT_NE(first, second);
         }
         Stack stack;
 
