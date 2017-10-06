@@ -9,6 +9,7 @@
 
 #ifndef Stack_h
 #define Stack_h
+#include <cassert>
 
 // Simple reference stack implementation based on a linked list.
 template <typename T>
@@ -57,9 +58,9 @@ public:
     }
     void pop () {
         if (head) {
-            Node* next = head->next;
+            Node* prev = head->prev;
             delete head;
-            head = next;
+            head = prev;
             --length;
         }
     }

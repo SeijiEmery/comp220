@@ -9,24 +9,27 @@
 #include <cstring>
 using namespace std;
 
-#include "StaticArray.h"
-#include "StaticArray.h" // multiple include test
+#include "Stack.h"
+#include "Stack.h" // multiple include test
 
-template <typename T, size_t N>
-void _testArrayImpl (const char*, T, T, T, T);
+template <typename Stack, typename T>
+void _testStackImpl (const char*, const char*, T, T, T, T);
 
-#define TEST_ARRAY_IMPL(T, first, second, third) \
-    _testArrayImpl<T,100>(#T, {}, first, second, third)
+#define TEST_STACK_IMPL(Stack, T, first, second, third) \
+    _testStackImpl<Stack<T>,T>(#Stack, #T, {}, first, second, third)
 
 int main () {
     std::cout << "Programmer: Seiji Emery\n";
     std::cout << "Programmer ID: M00202623\n";
     std::cout << "File: " __FILE__ "\n";
 
-    TEST_ARRAY_IMPL(int, 1, 2, 3);
-    TEST_ARRAY_IMPL(double, 1.5, 2.5, 3.5);
-    TEST_ARRAY_IMPL(char, '@', 'Z', 'a');
-    TEST_ARRAY_IMPL(std::string, "bar", "baz", "foo");
+    #define TEST_STACK_IMPL_WITH(Stack) \
+        TEST_STACK_IMPL(Stack, int, 1, 2, 3); \
+        TEST_STACK_IMPL(Stack, double, 1.5, 2.5, 3.5); \
+        TEST_STACK_IMPL(Stack, char, '@', 'Z', 'a'); \
+        TEST_STACK_IMPL(Stack, std::string, "bar", "baz", "foo");
+
+    TEST_STACK_IMPL_WITH(LinkedListStack)
     std::cout << "\033[32mAll tests passed\n\033[0m";
     return 0;
 }
@@ -74,62 +77,62 @@ testcase.failed = testcase.passed = 0;
 //
 // Test implementation
 //
-template <typename T, size_t N>
-void _testArrayImpl (const char* name, T init, T first, T second, T third) {
-    SECTION("Testing StaticArray<" << name << ", " << N << ">") {
+template <typename Stack, typename T>
+void _testStackImpl (const char* stackName, const char* typeName, T init, T first, T second, T third) {
+    SECTION("Testing " << stackName << "<" << typeName << ">") {
         SECTION("Sanity check") {
             // ASSERT_NE(first, first);     // To verify that test framework is working, try uncommenting this line (should fail).
             ASSERT_EQ(first, first);
             ASSERT_NE(first, second);   
         }
-        StaticArray<T,N> array;
+        Stack stack;
 
-        SECTION("Testing StaticArray capacity (should equal " << N << ")") {
-            ASSERT_EQ(array.capacity(), N);
-        }
-        SECTION("Testing StaticArray initial values (should be default-initialized, equal '" << init << "')") {
-            int numNonEqualElements = 0;
-            for (auto i = 0; i < array.capacity(); ++i) {
-                if (array[i] != init) ++numNonEqualElements;
-            }
-            ASSERT_EQ(numNonEqualElements, 0);
-        }
-        SECTION("Testing StaticArray getter / setter") {
-            array[0] = first;
-            ASSERT_EQ(array[0], first);
+        // SECTION("Testing StaticArray capacity (should equal " << N << ")") {
+        //     ASSERT_EQ(array.capacity(), N);
+        // }
+        // SECTION("Testing StaticArray initial values (should be default-initialized, equal '" << init << "')") {
+        //     int numNonEqualElements = 0;
+        //     for (auto i = 0; i < array.capacity(); ++i) {
+        //         if (array[i] != init) ++numNonEqualElements;
+        //     }
+        //     ASSERT_EQ(numNonEqualElements, 0);
+        // }
+        // SECTION("Testing StaticArray getter / setter") {
+        //     array[0] = first;
+        //     ASSERT_EQ(array[0], first);
 
-            array[13] = second;
-            ASSERT_EQ(array[13], second);
+        //     array[13] = second;
+        //     ASSERT_EQ(array[13], second);
 
-            array[N-1] = third;
-            ASSERT_EQ(array[N-1], third);
-        }
-        SECTION("Testing out-of-bounds array values") {
-            auto* ptr = &(array[-1] = first);
+        //     array[N-1] = third;
+        //     ASSERT_EQ(array[N-1], third);
+        // }
+        // SECTION("Testing out-of-bounds array values") {
+        //     auto* ptr = &(array[-1] = first);
 
-            ASSERT_EQ(*ptr, first);
-            ASSERT_EQ(array[-1], init);
-            ASSERT_EQ(&(array[N]), &(array[-1]));
-            ASSERT_EQ(array[N], array[-1]);
-            ASSERT_EQ(array[N], init);
+        //     ASSERT_EQ(*ptr, first);
+        //     ASSERT_EQ(array[-1], init);
+        //     ASSERT_EQ(&(array[N]), &(array[-1]));
+        //     ASSERT_EQ(array[N], array[-1]);
+        //     ASSERT_EQ(array[N], init);
 
-            // REQUIRE_EQ(array[-1], first);
-            // REQUIRE_EQ(array[N],  first);
-            ASSERT_NE(array[N], array[N-1]);
-        }
+        //     // REQUIRE_EQ(array[-1], first);
+        //     // REQUIRE_EQ(array[N],  first);
+        //     ASSERT_NE(array[N], array[N-1]);
+        // }
 
-        SECTION("Const-object test") {
-            const StaticArray<T, N> array2 = array;
-            ASSERT_EQ(array2[0], first);
-            ASSERT_EQ(array[13], second);
-            ASSERT_EQ(array[N-1], third);
+        // SECTION("Const-object test") {
+        //     const StaticArray<T, N> array2 = array;
+        //     ASSERT_EQ(array2[0], first);
+        //     ASSERT_EQ(array[13], second);
+        //     ASSERT_EQ(array[N-1], third);
 
-            int numNonEqualElements = 0;            
-            for (auto i = 0; i < array.capacity(); ++i) {
-                if (array[i] != array2[i]) ++numNonEqualElements;
-            }
-            ASSERT_EQ(numNonEqualElements, 0);
-        }
+        //     int numNonEqualElements = 0;            
+        //     for (auto i = 0; i < array.capacity(); ++i) {
+        //         if (array[i] != array2[i]) ++numNonEqualElements;
+        //     }
+        //     ASSERT_EQ(numNonEqualElements, 0);
+        // }
     }
     reportTestResults();
 }
