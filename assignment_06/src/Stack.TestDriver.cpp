@@ -48,30 +48,86 @@ int main () {
 #define SET_GREEN   SET_COLOR(32)
 #define SET_YELLOW  SET_COLOR(33)
 
+namespace mintest {
+
+// global variables (note: NOT threadsafe / reentrant)
+struct TestInfo;
+static TestInfo* g_currentTest = nullptr;
+static int g_testIndent = 0;
+
+// Helper functions for printing + controlling indented, formatted lines
+static std::ostream& writeln () { 
+    #ifndef NO_TEST_INDENT
+        std::cout << "\n" SET_YELLOW;
+        for (auto i = g_testIndent; i --> 0; ) {
+            std::cout << "|  ";      // prints '|' character every x spaces to denote indentation level
+        }  
+        return std::cout << CLEAR_COLOR; 
+    #else
+        return std::cout << '\n';
+    #endif
+}
+static void indent () { ++g_testIndent; }
+static void dedent () { --g_testIndent; }
+
+// Stores unittest section info; linked list to previous test sections.
 struct TestInfo {
     unsigned passed = 0, failed = 0;
-} testcase;
+    TestInfo* prev = nullptr;
+
+    // Indent when section entered; output done via macro + comma operator
+    // since handing <<-ed args would be difficult. 
+    TestInfo (bool) : prev(g_currentTest) { g_currentTest = this; indent(); }
+
+    ~TestInfo () {
+        // Dedent, and write section test results when section block ends
+        dedent();        
+        if (passed || failed) {
+            writeln() << (failed ? SET_RED : SET_GREEN) 
+                << passed << " / " << (passed + failed) << " tests passed" CLEAR_COLOR;
+            writeln();
+        }
+        if ((g_currentTest = prev)) {
+            // If not last section, add test results to previous test section.
+            prev->failed += failed;
+            prev->passed += passed;
+        } else if (failed) {
+            // Otherwise, call exit() if any of the previous tests have failed.
+            exit(-1);   
+        }
+    }
+    // Always evaluate to true, used since we're declaring sections in an if statement
+    operator bool () { return true; }
+}; // struct TestInfo
+}; // namespace mintest
+
+// ASSERT + SECTION macros.
+// SECTION(message << args...): declares a new scoped section (w/ a label etc.; can be formatted via << and macro magic).
+// ASSERT_EQ(a, b):     pretty-printed version of assert(a == b)
+// ASSERT_NE(a, b):     pretty-printed version of assert(a != b)
 
 #define ASSERT_BIN_OP(a,b,op) do {\
-    if ((a) op (b)) ++testcase.passed, std::cout << SET_GREEN "PASS" CLEAR_COLOR ": "; \
-    else            ++testcase.failed, std::cout << SET_RED   "FAIL" CLEAR_COLOR ": "; \
-    std::cout << #a " " #op " " #b " (file " __FILE__ ":" << __LINE__ << ")\n"; \
-    std::cout << "    EXPECTED: " #a " = '" << a << "'\n";\
-    std::cout << "    GOT:      " #b " = '" << b << "'\n";\
+    mintest::writeln() << ((a) op (b) ? \
+        (++testcase.passed, SET_GREEN "PASS") : \
+        (++testcase.failed, SET_RED   "FAIL")) \
+        << CLEAR_COLOR ": " #a " " #op " " #b " (file " __FILE__ ":" << __LINE__ << ")";\
+    mintest::writeln() << "    EXPECTED: " #b " = '" << b << "'";\
+    mintest::writeln() << "    GOT:      " #a " = '" << a << "'";\
 } while(0)
 #define ASSERT_EQ(a,b) ASSERT_BIN_OP(a,b,==)
 #define ASSERT_NE(a,b) ASSERT_BIN_OP(a,b,!=)
-#define SECTION(msg...) if ((std::cout << "\n" SET_YELLOW << msg << CLEAR_COLOR "\n"), true)
+#define SECTION(msg...) if (auto testcase = mintest::TestInfo((\
+    mintest::writeln() << SET_YELLOW << msg << CLEAR_COLOR, true)))
 
-static void reportTestResults () {
-std::cout << (testcase.failed ? SET_RED : SET_GREEN) 
-    << testcase.passed << " / " << (testcase.passed + testcase.failed) 
-    << " tests passed" CLEAR_COLOR "\n\n";
-if (testcase.failed != 0) {
-    exit(-1);
-}
-testcase.failed = testcase.passed = 0;
-}
+//
+// Main program
+//
+
+template <typename T, size_t N>
+void _testArrayImpl (const char*, T, T, T, T);
+
+#define TEST_ARRAY_IMPL(T, first, second, third) \
+    _testArrayImpl<T,100>(#T, {}, first, second, third)
 
 
 //
@@ -87,52 +143,60 @@ void _testStackImpl (const char* stackName, const char* typeName, T init, T firs
         }
         Stack stack;
 
-        // SECTION("Testing StaticArray capacity (should equal " << N << ")") {
-        //     ASSERT_EQ(array.capacity(), N);
-        // }
-        // SECTION("Testing StaticArray initial values (should be default-initialized, equal '" << init << "')") {
-        //     int numNonEqualElements = 0;
-        //     for (auto i = 0; i < array.capacity(); ++i) {
-        //         if (array[i] != init) ++numNonEqualElements;
-        //     }
-        //     ASSERT_EQ(numNonEqualElements, 0);
-        // }
-        // SECTION("Testing StaticArray getter / setter") {
-        //     array[0] = first;
-        //     ASSERT_EQ(array[0], first);
+        SECTION("Stack should initially be empty") {
+            ASSERT_EQ(stack.size(), 0);
+            ASSERT_EQ(stack.empty(), true);
+        }
+        SECTION("Test pushing first element") {
+            stack.push(first);
+            ASSERT_EQ(stack.size(), 1);
+            ASSERT_EQ(stack.empty(), false);
+            ASSERT_EQ(stack.peek(), first);
+        }
+        SECTION("Test pushing second element") {
+            stack.push(second);
+            ASSERT_EQ(stack.size(), 2);
+            ASSERT_EQ(stack.empty(), false);
+            ASSERT_EQ(stack.peek(), second);
+        }
+        SECTION("Const object test / test copy construction") {
+            const Stack s2 = stack;
+            ASSERT_EQ(s2.size(), 2);
+            ASSERT_EQ(s2.empty(), false);
+            ASSERT_EQ(s2.peek(), second);
+            ASSERT_EQ(s2.size(), 2);
+        }
+        SECTION("Test popping elements") {
+            stack.pop();
+            ASSERT_EQ(stack.size(), 1);
+            ASSERT_EQ(stack.empty(), false);
+            ASSERT_EQ(stack.peek(), first);
 
-        //     array[13] = second;
-        //     ASSERT_EQ(array[13], second);
-
-        //     array[N-1] = third;
-        //     ASSERT_EQ(array[N-1], third);
-        // }
-        // SECTION("Testing out-of-bounds array values") {
-        //     auto* ptr = &(array[-1] = first);
-
-        //     ASSERT_EQ(*ptr, first);
-        //     ASSERT_EQ(array[-1], init);
-        //     ASSERT_EQ(&(array[N]), &(array[-1]));
-        //     ASSERT_EQ(array[N], array[-1]);
-        //     ASSERT_EQ(array[N], init);
-
-        //     // REQUIRE_EQ(array[-1], first);
-        //     // REQUIRE_EQ(array[N],  first);
-        //     ASSERT_NE(array[N], array[N-1]);
-        // }
-
-        // SECTION("Const-object test") {
-        //     const StaticArray<T, N> array2 = array;
-        //     ASSERT_EQ(array2[0], first);
-        //     ASSERT_EQ(array[13], second);
-        //     ASSERT_EQ(array[N-1], third);
-
-        //     int numNonEqualElements = 0;            
-        //     for (auto i = 0; i < array.capacity(); ++i) {
-        //         if (array[i] != array2[i]) ++numNonEqualElements;
-        //     }
-        //     ASSERT_EQ(numNonEqualElements, 0);
-        // }
+            stack.push(second);
+            stack.push(first);
+            stack.push(third);
+            ASSERT_EQ(stack.size(), 4);
+            ASSERT_EQ(stack.empty(), false);
+            ASSERT_EQ(stack.peek(), third);
+            stack.pop(); ASSERT_EQ(stack.size(), 3); ASSERT_EQ(stack.peek(), first);
+            stack.pop(); ASSERT_EQ(stack.size(), 2); ASSERT_EQ(stack.peek(), second);
+            stack.pop(); ASSERT_EQ(stack.size(), 1); ASSERT_EQ(stack.peek(), first);
+            stack.pop(); ASSERT_EQ(stack.size(), 0); ASSERT_EQ(stack.empty(), true);
+            stack.pop(); ASSERT_EQ(stack.size(), 0); ASSERT_EQ(stack.empty(), true);
+            stack.push(first);
+            ASSERT_EQ(stack.size(), 1); ASSERT_EQ(stack.empty(), false);
+            stack.pop();
+            ASSERT_EQ(stack.empty(), true);
+        }
+        SECTION("Test clear") {
+            stack.push(first);
+            stack.push(second);
+            stack.push(third);
+            ASSERT_EQ(stack.size(), 3);
+            stack.clear();
+            ASSERT_EQ(stack.size(), 0); ASSERT_EQ(stack.empty(), true);
+            stack.clear();
+            ASSERT_EQ(stack.size(), 0); ASSERT_EQ(stack.empty(), true);
+        }
     }
-    reportTestResults();
 }

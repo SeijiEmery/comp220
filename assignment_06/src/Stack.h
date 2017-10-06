@@ -27,7 +27,7 @@ class LinkedListStack {
             value(node.value), 
             prev(node.prev ? new Node(*(node.prev)) : nullptr) 
         {}
-        ~Node () { if (prev) delete prev; }
+        ~Node () {}
     };
     Node* head = nullptr;
     size_t length = 0;
@@ -55,6 +55,10 @@ public:
     T& peek () { 
         assert(!empty()); 
         return head->value; 
+    }
+    const T& peek () const {
+        assert(!empty());
+        return head->value;
     }
     void pop () {
         if (head) {
