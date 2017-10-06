@@ -320,16 +320,31 @@ void Bitset::unittest () {
 // This can all be disabled if compiling with -D NO_MEM_DEBUG.
 //
 #ifndef NO_MEM_DEBUG
+#include <chrono>
 
-static size_t g_num_allocations = 0;
-static size_t g_num_frees       = 0;
+struct MemTracer {
+    void traceAlloc (size_t bytes) { ++numAllocations; allocatedMem += bytes; }
+    void traceFreed (size_t bytes) { ++numFrees; freedMem += bytes;}
+private:
+    size_t numAllocations = 0;  // number of allocations in this program
+    size_t numFrees       = 0;  // number of deallocations in this program
+    size_t allocatedMem   = 0;  // bytes allocated
+    size_t freedMem       = 0;  // bytes freed
 
-static size_t g_allocated_mem = 0;
-static size_t g_freed_mem = 0;
+    std::chrono::high_resolution_clock::time_point t0;  // time at program start
+public:
+    MemTracer () : t0(std::chrono::high_resolution_clock::now()) {}
+    ~MemTracer () {
+        using namespace std::chrono;
+        auto t1 = high_resolution_clock::now();
+        std::cout << "\nUsed  memory: " << ((double)allocatedMem) * 1e-6 << " MB (" << numAllocations << " allocations)\n";
+        std::cout << "Freed memory: "   << ((double)freedMem)     * 1e-6 << " MB (" << numFrees       << " deallocations)\n";
+        std::cout << "Ran in " << duration_cast<duration<double>>(t1 - t0).count() * 1e3 << " ms\n";
+    }
+} g_memTracer;
 
 void* operator new (size_t size) throw(std::bad_alloc) {
-    g_allocated_mem += size;
-    ++g_num_allocations;
+    g_memTracer.traceAlloc(size);
     size_t* mem = (size_t*)std::malloc(size + sizeof(size_t));
     if (!mem) {
         throw std::bad_alloc();
@@ -339,21 +354,8 @@ void* operator new (size_t size) throw(std::bad_alloc) {
 }
 void operator delete (void* mem) throw() {
     auto ptr = &((size_t*)mem)[-1];
-    g_freed_mem += ptr[0];
-    ++g_num_frees;
+    g_memTracer.traceFreed(ptr[0]);
     std::free(ptr);
 }
-struct PerfLogger {
-    std::chrono::high_resolution_clock::time_point t0;
-
-    PerfLogger () : t0(std::chrono::high_resolution_clock::now()) {}
-    ~PerfLogger () {
-        using namespace std::chrono;
-        auto t1 = high_resolution_clock::now();
-        std::cout << "\nUsed  memory: " << ((double)g_allocated_mem) * 1e-6 << " MB (" << g_num_allocations << " allocations)\n";
-        std::cout << "Freed memory: "   << ((double)g_freed_mem) * 1e-6     << " MB (" << g_num_frees       << " deallocations)\n";
-        std::cout << "Ran in " << duration_cast<duration<double>>(t1 - t0).count() * 1e3 << " ms\n";
-    }
-} g_perf_logger;
 
 #endif // NO_MEM_DEBUG
