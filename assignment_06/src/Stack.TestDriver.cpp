@@ -29,7 +29,7 @@ int main () {
         TEST_STACK_IMPL(Stack, char, '@', 'Z', 'a'); \
         TEST_STACK_IMPL(Stack, std::string, "bar", "baz", "foo");
 
-    TEST_STACK_IMPL_WITH(LinkedListStack)
+    TEST_STACK_IMPL_WITH(Stack)
     std::cout << "\033[32mAll tests passed\n\033[0m";
     return 0;
 }

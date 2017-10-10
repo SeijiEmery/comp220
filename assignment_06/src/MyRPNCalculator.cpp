@@ -80,7 +80,7 @@ void operator delete (void* mem) throw() {
 #endif // NO_MEM_DEBUG
 
 template <typename T>
-T popBack (LinkedListStack<T>& stack, T default_ = T()) {
+T popBack (Stack<T>& stack, T default_ = T()) {
     T back = stack.empty() ? default_ : stack.peek();
     stack.pop();
     return back;
@@ -91,7 +91,7 @@ int main () {
     std::cout << "Programmer's ID:  M00202623\n";
     std::cout << "File:             " << __FILE__ << '\n' << std::endl;
 
-    LinkedListStack<double> values;
+    Stack<double> values;
     std::string line, input;
     bool        running = true;
 

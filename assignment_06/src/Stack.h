@@ -13,7 +13,7 @@
 
 // Simple reference stack implementation based on a linked list.
 template <typename T>
-class LinkedListStack {
+class Stack {
     struct Node {
         T     value;
         Node* prev = nullptr;
@@ -32,15 +32,15 @@ class LinkedListStack {
     Node* head = nullptr;
     size_t length = 0;
 public:
-    LinkedListStack () {}
-    LinkedListStack (const T& value) { push(value); }
-    LinkedListStack (const LinkedListStack<T>& other) : 
+    Stack () {}
+    Stack (const T& value) { push(value); }
+    Stack (const Stack<T>& other) : 
         head(other.head ? new Node(*(other.head)) : nullptr), 
         length(other.length) 
     {}
-    ~LinkedListStack () { clear(); }
+    ~Stack () { clear(); }
 
-    LinkedListStack<T>& operator= (const LinkedListStack<T>& other) {
+    Stack<T>& operator= (const Stack<T>& other) {
         clear();
         if (other.head) {
             head = new Node(*(other.head));
