@@ -119,7 +119,7 @@ int main () {
     std::string line, input;
     bool        running = true;
 
-    std::regex  expr { "\\s*([0-9\\.eE]+|[\\+\\-\\*\\^\\/qQ]|help|drop|dup|disp|swap|clear|top|pi|sin|cos|tan|asin|acos|atan|sqrt|abs|mem|hex|bin)\\s*" };
+    std::regex  expr { "\\s*(\\d+((\\.|[eE]\\-?)\\d+)*|[\\+\\-\\*\\^\\.\\/qQ]|help|drop|dup|disp|swap|clear|top|pi|sin|cos|tan|asin|acos|atan|sqrt|abs|mem|hex|bin)\\s*" };
     std::smatch match;
     double a, b;
 
