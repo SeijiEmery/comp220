@@ -13,6 +13,8 @@ using namespace std;
 #include <cmath>
 #include "Stack.h"
 
+#define ASSIGNMENT_SPEC     // for a more interesting program, comment out this line
+
 //
 // Memory + time benchmarking code: this hijacks (overloads) global new / delete
 // to trace memory allocations (very simple: # of allocations / frees + # bytes
@@ -93,12 +95,36 @@ int main () {
     std::string line, input;
     bool        running = true;
 
-    std::regex  expr { "\\s*([0-9\\.]+|[\\+\\-\\*\\^\\/qQ]|help|drop|dup|disp|swap|clear|top|pi|sin|cos|tan|asin|acos|atan|sqrt|abs|mem)\\s*" };
+    std::regex  expr { "\\s*([0-9\\.eE]+|[\\+\\-\\*\\^\\/qQ]|help|drop|dup|disp|swap|clear|top|pi|sin|cos|tan|asin|acos|atan|sqrt|abs|mem|hex|bin)\\s*" };
     std::smatch match;
     double a, b;
 
+    auto writeStack = [&values](){
+        if (values.empty()) {
+            #ifndef ASSIGNMENT_SPEC
+                std::cout << "empty ";
+            #endif
+        } else {
+            auto copy = values;
+            while (!copy.empty()) {
+                std::cout << copy.peek() << " ";
+                copy.pop();
+            }
+        }
+    };
+    auto displayStack = [&writeStack](){
+        writeStack(); std::cout << "\n";
+    };
+
+    std::cout << "\033[36;1m";
     while (running) {
-        std::cin >> line;
+        #ifdef ASSIGNMENT_SPEC
+            writeStack();
+        #endif
+        std::cout << "\033[0m";
+        while (!getline(cin, line));
+        // std::cin >> line;
+        std::cout << "\033[36;1m";
         int opcount = 0;    // # operations since last disp / eol
         for (; std::regex_search(line, match, expr); line = match.suffix().str()) {
             auto token = match[1].str();
@@ -115,20 +141,7 @@ int main () {
                 case 'd': 
                     if (token == "drop") { values.pop(); } 
                     else if (token == "dup" && !values.empty()) { values.push(values.peek()); }
-                    else if (token == "disp") {
-                    display:
-                        // std::cout << opcount << "STACK: ";
-                        if (values.empty()) {
-                            std::cout << "empty\n";
-                        } else {
-                            auto copy = values;
-                            while (!copy.empty()) {
-                                std::cout << copy.peek() << " ";
-                                copy.pop();
-                            }
-                            std::cout << "\n";
-                        }   
-                    }
+                    else if (token == "disp") { displayStack(); }
                     break;
                 case 't': 
                     if (token == "top") {
@@ -165,7 +178,8 @@ int main () {
                 case 'p':
                     if (token == "pi") {
                         // clever way to calculate pi – from https://stackoverflow.com/a/1727886
-                        values.push(atan(1) * 4);
+                        // values.push(atan(1) * 4);
+                        values.push(3.141592653589793);
                     }
                 break;
                 case 'm': 
@@ -173,16 +187,29 @@ int main () {
                         g_memTracer.memstat();
                     }
                 break;
-                case 'h': if (token == "help") {
-                    std::cout << "RPL Calculator. Enter number, or any of the following operations:\n"
-                        << "\t+, -, *, /, ^, sin, cos, tan, acos, asin, atan, sqrt, abs, drop, dup, disp, swap, quit, clear, top, help\n";
-                } break;
-                case '.': 
-                    if (token == ".") {
-                        goto display;
-                    } else goto number;
-                    break;
+                case 'h': 
+                    if (token == "help") {
+                        std::cout << "RPN Calculator. Enter number, or any of the following operations:\n"
+                            << "\t+, -, *, /, ^, sin, cos, tan, acos, asin, atan, sqrt, abs, drop, dup, disp (alias .), swap, quit, clear, top, help\n";
+                    } else if (token == "hex" && !values.empty()) {
+                        std::cout << "0x" << std::hex << (int)values.peek() << '\n';
+                    } 
+                break;
+                case 'b':
+                    if (token == "bin" && !values.empty()) {
+                        uint64_t i = *reinterpret_cast<uint64_t*>(&values.peek()) << '\n';
+                        char bit[] = { '0', '1' };
+                        std::cout << "0b";
+                        if (!i) std::cout << "0"; 
+                        while (i) {
+                            std::cout << bit[i & 1];
+                            i >>= 1; 
+                        }
+                        std::cout << '\n';
+                    }
+                break;
                 case 'q': case 'Q': running = false; goto quit;
+                case '.': displayStack(); break;
                 default: number: values.push(atof(token.c_str()));
             }
             ++opcount;
