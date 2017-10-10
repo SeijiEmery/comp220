@@ -3,6 +3,30 @@
 //
 // MyRPNCalculator.cpp
 //
+// Implements a RPN calculator / interpreter. Supported operations:
+//  'a b +' => a + b    'a +' => does nothing
+//  'a b -' => a - b    'a -' => -a
+//  'a b *' => a * b    'a *' => does nothing
+//  'a b /' => a / b    'a /' => 1 / a
+//  'a b ^' => pow(a,b) 'a ^' => does nothing
+//
+// Plus math functions:
+//  sqrt, abs, log
+//  sin, cos, tan, asin, acos, atan
+//
+//  'disp'  => prints entire stack (aliased '.')
+//  'top'   => prints top of stack
+//  'swap'  => swaps 2 top elements on stack
+//  'dup'   => duplicates top element on stack
+//  'drop'  => removes top of stack
+//  'clear' => clears entire stack
+//
+//  'help'  => print a (not very useful) help message
+//  'mem'   => prints memory usage + resets memory usage counters
+//       Note: fairly limited, as not originally written for this
+//
+//  'q' / 'Q' => exits the program (or use ctrl+C)
+//  
 
 #include <iostream>
 #include <string>
@@ -13,7 +37,7 @@ using namespace std;
 #include <cmath>
 #include "Stack.h"
 
-#define ASSIGNMENT_SPEC     // for a more interesting program, comment out this line
+// #define ASSIGNMENT_SPEC     // for a more interesting program, comment out this line
 
 //
 // Memory + time benchmarking code: this hijacks (overloads) global new / delete
