@@ -119,7 +119,7 @@ int main () {
     std::string line, input;
     bool        running = true;
 
-    std::regex  expr { "\\s*(\\d+((\\.|[eE]\\-?)\\d+)*|[\\+\\-\\*\\^\\.\\/qQ]|help|drop|dup|disp|swap|clear|top|pi|sin|cos|tan|asin|acos|atan|sqrt|abs|mem|hex|bin)\\s*" };
+    std::regex  expr { "\\s*(\\d+((\\.|[eE]\\-?)\\d+)*|[\\+\\-\\*\\^\\.\\/qQ]|help|drop|dup|disp|swap|clear|top|pi|exp|e|sin|cos|tan|asin|acos|atan|sqrt|log|abs|mem|hex|bin)\\s*" };
     std::smatch match;
     double a, b;
 
@@ -142,9 +142,9 @@ int main () {
 
     std::cout << "\033[36;1m";
     while (running) {
-        #ifdef ASSIGNMENT_SPEC
+        // #ifdef ASSIGNMENT_SPEC
             writeStack();
-        #endif
+        // #endif
         std::cout << "\033[0m";
         while (!getline(cin, line));
         // std::cin >> line;
@@ -177,11 +177,21 @@ int main () {
                     break;
                 case 's': 
                     if (token == "swap" && values.size() >= 2) { 
-                        auto top = popBack(values), btm = popBack(values); 
-                        values.push(top); values.push(btm);
+                        values.swap();
+                        // auto top = popBack(values), btm = popBack(values); 
+                        // values.push(top); values.push(btm);
                     } else if (token == "sin" && values.size() >= 1) {
                         values.push(sin(popBack(values)));
-                    } 
+                    } else if (token == "sqrt") {
+                        values.push(sqrt(popBack(values)));
+                    }
+                break;
+                case 'e':
+                    if (token == "e") {
+                        values.push(exp(1.0));
+                    } else if (token == "exp") {
+                        values.push(exp(popBack(values)));
+                    }
                 break;
                 case 'c': 
                     if (token == "clear") {
@@ -197,6 +207,8 @@ int main () {
                         values.push(acos(popBack(values)));
                     } else if (token == "atan") {
                         values.push(atan(popBack(values)));
+                    } else if (token == "abs") {
+                        values.push(fabs(popBack(values)));
                     }
                 break;
                 case 'p':
@@ -219,6 +231,11 @@ int main () {
                         std::cout << "0x" << std::hex << (int)values.peek() << '\n';
                     } 
                 break;
+                case 'l':
+                    if (token == "log") {
+                        values.push(log(popBack(values)));
+                    }
+                    break;
                 case 'b':
                     if (token == "bin" && !values.empty()) {
                         uint64_t i = *reinterpret_cast<uint64_t*>(&values.peek()) << '\n';
@@ -232,7 +249,10 @@ int main () {
                         std::cout << '\n';
                     }
                 break;
-                case 'q': case 'Q': running = false; goto quit;
+                case 'q':
+                    if (token == "quit") { running = false; goto quit; }
+                    break;
+                // case 'q': case 'Q': running = false; goto quit;
                 case '.': displayStack(); break;
                 default: number: values.push(atof(token.c_str()));
             }
