@@ -154,52 +154,68 @@ void _testQueueImpl (const char* queueName, const char* typeName, T init, T firs
             queue.push(first);
             ASSERT_EQ(queue.size(), 1);
             ASSERT_EQ(queue.empty(), false);
-            ASSERT_EQ(queue.peek(), first);
+            ASSERT_EQ(queue.front(), first);
+            ASSERT_EQ(queue.back(), first);
         }
         SECTION("Test pushing second element") {
             queue.push(second);
             ASSERT_EQ(queue.size(), 2);
             ASSERT_EQ(queue.empty(), false);
-            ASSERT_EQ(queue.peek(), second);
+            ASSERT_EQ(queue.front(), first);
+            ASSERT_EQ(queue.back(),  second);
         }
-        SECTION("Const object test / test copy construction") {
-            const Queue s2 = queue;
-            ASSERT_EQ(s2.size(), 2);
-            ASSERT_EQ(s2.empty(), false);
-            ASSERT_EQ(s2.peek(), second);
-            ASSERT_EQ(s2.size(), 2);
+        SECTION("Test popping first element") {
+            queue.pop();
+            ASSERT_EQ(queue.size(),  1);
+            ASSERT_EQ(queue.empty(), false);
+            ASSERT_EQ(queue.front(), second);
+            ASSERT_EQ(queue.back(),  second);
         }
-        SECTION("Test popping elements") {
+        SECTION("Test popping second element") {
             queue.pop();
-            ASSERT_EQ(queue.size(), 1);
-            ASSERT_EQ(queue.empty(), false);
-            ASSERT_EQ(queue.peek(), first);
-
-            queue.push(second);
-            queue.push(first);
-            queue.push(third);
-            ASSERT_EQ(queue.size(), 4);
-            ASSERT_EQ(queue.empty(), false);
-            ASSERT_EQ(queue.peek(), third);
-            queue.pop(); ASSERT_EQ(queue.size(), 3); ASSERT_EQ(queue.peek(), first);
-            queue.pop(); ASSERT_EQ(queue.size(), 2); ASSERT_EQ(queue.peek(), second);
-            queue.pop(); ASSERT_EQ(queue.size(), 1); ASSERT_EQ(queue.peek(), first);
-            queue.pop(); ASSERT_EQ(queue.size(), 0); ASSERT_EQ(queue.empty(), true);
-            queue.pop(); ASSERT_EQ(queue.size(), 0); ASSERT_EQ(queue.empty(), true);
-            queue.push(first);
-            ASSERT_EQ(queue.size(), 1); ASSERT_EQ(queue.empty(), false);
-            queue.pop();
+            ASSERT_EQ(queue.size(), 0);
             ASSERT_EQ(queue.empty(), true);
         }
-        SECTION("Test clear") {
+        SECTION("Push 3 elements") {
             queue.push(first);
             queue.push(second);
             queue.push(third);
+            ASSERT_EQ(queue.size(),  3);
+            ASSERT_EQ(queue.empty(), false);
+            ASSERT_EQ(queue.front(), first);
+            ASSERT_EQ(queue.back(),  third);
+        }
+        SECTION("Const object test") {
+            {
+                const Queue q2 = queue;
+                ASSERT_EQ(q2.size(),  3);
+                ASSERT_EQ(q2.empty(), false);
+                ASSERT_EQ(q2.front(), first);
+                ASSERT_EQ(q2.back(),  third);
+            }
+            ASSERT_EQ(queue.size(),  3);
+            ASSERT_EQ(queue.empty(), false);
+        }
+        SECTION("Assignment / copy test") {
+            Queue q2; q2 = queue;
+            ASSERT_EQ(q2.size(),  3);
+            ASSERT_EQ(q2.empty(), false);
+            ASSERT_EQ(q2.front(), first);
+            ASSERT_EQ(q2.back(),  third);
+
+            SECTION("Test clearing copied queue") {
+                q2.clear();
+                ASSERT_EQ(q2.size(), 0);
+                ASSERT_EQ(q2.empty(), true);
+                ASSERT_EQ(queue.size(), 3);
+                ASSERT_EQ(queue.empty(), false);
+            }            
+        }
+        SECTION("Check original queue state unchanged") {
             ASSERT_EQ(queue.size(), 3);
-            queue.clear();
-            ASSERT_EQ(queue.size(), 0); ASSERT_EQ(queue.empty(), true);
-            queue.clear();
-            ASSERT_EQ(queue.size(), 0); ASSERT_EQ(queue.empty(), true);
+            ASSERT_EQ(queue.empty(), false);
+            ASSERT_EQ(queue.front(), first);
+            ASSERT_EQ(queue.back(), third);
         }
     }
 }
