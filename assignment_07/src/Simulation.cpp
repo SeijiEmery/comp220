@@ -67,6 +67,22 @@ struct ServerConfig {
             exit(-1);
         }
     }
+
+    ServerConfig (int argc, const char** argv) {
+        const char* configPath = "simulation.txt";
+        switch (argc) {
+            case 1: break;
+            case 2: 
+                if (strcmp(argv[1], "setup") == 0) {
+                    ofstream file { configPath }; file << "4\n2.5\n8\n3\n10\n50" << std::endl;
+                } else {
+                    configPath = argv[1];
+                }
+                break;
+            default: std::cerr << "usage: " << argv[0] << " [<simulation.txt>] | setup\n"; exit(-1);
+        }
+        loadFromFile(configPath);
+    }
 };
 
 
@@ -75,22 +91,9 @@ int main (int argc, const char** argv) {
     std::cout << "Programmer's ID:  M00202623\n";
     std::cout << "File:             " << __FILE__ << '\n' << std::endl;
 
-    const char* configPath = "simulation.txt";
-    switch (argc) {
-        case 1: break;
-        case 2: 
-            if (strcmp(argv[1], "setup") == 0) {
-                ofstream file { configPath }; file << "4\n2.5\n8\n3\n10\n50" << std::endl;
-            } else {
-                configPath = argv[1];
-            }
-            break;
-        default: std::cerr << "usage: " << argv[0] << " [<simulation.txt>] | setup\n"; exit(-1);
-    }
-
-    ServerConfig config;
-    config.loadFromFile(configPath);
+    ServerConfig config (argc, argv);
     std::cout << config;
+
     return 0;
 }
 
