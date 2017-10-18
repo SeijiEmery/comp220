@@ -85,6 +85,29 @@ struct ServerConfig {
     }
 };
 
+struct Customer {
+private:
+    static char nextId;
+public:
+    char   id;
+    size_t arrivalTime;
+    size_t serviceEndTime;
+
+    Customer (size_t arrivalTime, size_t serviceEndTime)
+        : id(nextId = ((nextId+1 - 'A') % 26) + 'A'),
+          arrivalTime(arrivalTime), serviceEndTime(serviceEndTime) 
+    {}
+    Customer (const Customer&) = default;
+    Customer& operator= (const Customer&) = default;
+    // Customer (const Customer& other) 
+    //     : id(other.id), arrivalTime(other.arrivalTime), serviceEndTime(other.serviceEndTime)
+    // {}
+    friend std::ostream& operator << (std::ostream& os, const Customer& customer) {
+        return os << customer.id;
+    }
+};
+char Customer::nextId = 'Z';
+
 
 int main (int argc, const char** argv) {
     std::cout << "Programmer:       Seiji Emery\n";
@@ -93,6 +116,8 @@ int main (int argc, const char** argv) {
 
     ServerConfig config (argc, argv);
     std::cout << config;
+
+    std::cout << Customer(1,4) << Customer(2,8) << Customer(9,7) << "\n";
 
     return 0;
 }
