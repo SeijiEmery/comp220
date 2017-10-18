@@ -21,12 +21,12 @@ using namespace std;
 #include "Queue.h"
 
 struct ServerConfig {
-    size_t count          = 4;   // number of servers
-    double arrivalRate    = 5.5; // customer arrival rate
-    size_t maxQueueLength = 10;  // maximum wait queue length
-    size_t minServiceTime = 1;   // min service time, in minutes
-    size_t maxServiceTime = 10;  // max service time, in minutes
-    size_t arrivalEndTime = 60;  // time at which customers stop arriving, in minutes
+    size_t count          = 0;  // number of servers
+    double arrivalRate    = 0;  // customer arrival rate
+    size_t maxQueueLength = 0;  // maximum wait queue length
+    size_t minServiceTime = 0;  // min service time, in minutes
+    size_t maxServiceTime = 0;  // max service time, in minutes
+    size_t arrivalEndTime = 0;  // time at which customers stop arriving, in minutes
 
     ServerConfig () {}
 
