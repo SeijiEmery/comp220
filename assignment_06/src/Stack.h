@@ -19,6 +19,10 @@ class Stack {
         Node* prev = nullptr;
 
         Node () {}
+        Node (T&& value, Node* prev = nullptr) :
+            value(value),
+            prev(prev)
+        {}
         Node (const T& value, Node* prev = nullptr) : 
             value(value), 
             prev(prev) 
@@ -47,6 +51,10 @@ public:
         }
         length = other.head;
         return *this;
+    }
+    void push (T&& value) {
+        head = new Node(value, head);
+        ++length;
     }
     void push (const T& value) {
         head = new Node(value, head);
@@ -78,6 +86,14 @@ public:
     void clear () {
         while (!empty()) {
             pop();
+        }
+    }
+    void swap () {
+        if (size() >= 2) {
+            Node* prev = head;
+            head = head->prev;
+            prev->prev = head->prev;
+            head->prev = prev;
         }
     }
 };
