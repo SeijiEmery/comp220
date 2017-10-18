@@ -19,82 +19,69 @@ class Queue {
         Node* prev = nullptr;
 
         Node () {}
-        Node (T&& value, Node* prev = nullptr) :
-            value(value),
-            prev(prev)
-        {}
-        Node (const T& value, Node* prev = nullptr) : 
-            value(value), 
-            prev(prev) 
-        {}
-        Node (const Node& node) : 
-            value(node.value), 
-            prev(node.prev ? new Node(*(node.prev)) : nullptr) 
-        {}
+        Node (T&& value) : value(value) {}
+        Node (const T& value) : value(value) {}
         ~Node () {}
     };
     Node* head = nullptr;
+    Node* tail = nullptr;
     size_t length = 0;
+
 public:
     Queue () {}
     Queue (const T& value) { push(value); }
-    Queue (const Queue<T>& other) : 
-        head(other.head ? new Node(*(other.head)) : nullptr), 
-        length(other.length) 
-    {}
+    Queue (const Queue<T>& other) { *this = other; }
     ~Queue () { clear(); }
 
     Queue<T>& operator= (const Queue<T>& other) {
         clear();
-        if (other.head) {
-            head = new Node(*(other.head));
+        for (Node* node = other.head; node; node = node->prev) {
+            push(new Node(node->value));
         }
-        length = other.head;
+        assert(size() == other.size());
         return *this;
     }
-    void push (T&& value) {
-        head = new Node(value, head);
+protected:
+    void push (Node* node) {
+        assert(node != nullptr);
+        if (!tail) { head = node; }
+        else { tail->prev = node; }
+        tail = node;
         ++length;
     }
-    void push (const T& value) {
-        head = new Node(value, head);
-        ++length;
-    }
-    T& peek () { 
-        assert(!empty()); 
-        return head->value; 
-    }
-    const T& peek () const {
-        assert(!empty());
-        return head->value;
-    }
+public:
+    void push (T&& value)      { push(new Node(value)); }
+    void push (const T& value) { push(new Node(value)); }
+
     void pop () {
-        if (head) {
-            Node* prev = head->prev;
-            delete head;
-            head = prev;
-            --length;
-        }
+        assert(!empty());
+        auto prev = head->prev;
+        delete head;
+        head = head->prev;
+        if (!head) { tail = head; }
+        --length;
+    }
+
+    T& front () { assert(!empty()); return head->value; }
+    T& back  () { assert(!empty()); return tail->value; }
+
+    const T& front () const { assert(!empty()); return head->value; }
+    const T& back  () const { assert(!empty()); return tail->value; }
+
+    bool empty () const {
+        assert((head == nullptr) == (tail == nullptr));
+        return head == nullptr;
     }
     size_t size () const { 
+        assert(empty() == (length == 0)); 
         return length; 
-    }
-    bool empty () const {
-        assert((length == 0) == (head == nullptr));
-        return head == nullptr;
     }
     void clear () {
         while (!empty()) {
             pop();
         }
-    }
-    void swap () {
-        if (size() >= 2) {
-            Node* prev = head;
-            head = head->prev;
-            prev->prev = head->prev;
-            head->prev = prev;
-        }
+        assert(empty());
+        assert(length == 0);
     }
 };
 
