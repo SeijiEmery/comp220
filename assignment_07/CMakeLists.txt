@@ -21,6 +21,10 @@ add_custom_target(test
     COMMAND ./testdriver
     DEPENDS testdriver)
 
+add_custom_target(setup
+    COMMAND ./simulation setup
+    DEPENDS ./simulation)
+
 add_custom_target(run
     COMMAND ./simulation
     DEPENDS simulation)

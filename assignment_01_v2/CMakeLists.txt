@@ -25,4 +25,4 @@ add_custom_target(test
 
 add_custom_target(run
     COMMAND ./myarray
-    DEPENDS myarray)
+    DEPENDS myarray setup)

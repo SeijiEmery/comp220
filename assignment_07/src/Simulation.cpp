@@ -30,6 +30,17 @@ struct ServerConfig {
 
     ServerConfig () {}
 
+    friend std::istream& operator>> (std::istream& is, ServerConfig& config) {
+        return is 
+            >> config.count
+            >> config.arrivalRate
+            >> config.maxQueueLength
+            >> config.minServiceTime
+            >> config.maxServiceTime
+            >> config.arrivalEndTime;
+        return is;
+    }
+
     friend std::ostream& operator<< (std::ostream& os, const ServerConfig& config) {
         constexpr size_t indent = 2;
         return os << "number of servers: " << std::setw(indent+4) << config.count << '\n'
@@ -39,15 +50,46 @@ struct ServerConfig {
             << "minimum service time: " << std::setw(indent+1) << config.minServiceTime << '\n'
             << "maximum service time: " << std::setw(indent+1) << config.maxServiceTime << '\n';
     }
+    void loadFromFile (const char* path) {
+        std::ifstream file { path };
+        if (!file) { 
+            std::cerr << "Could not load / locate '" << path << "'\n"; 
+            exit(-1); 
+        }
+        if (!(file >> *this)) {
+            std::cerr << "Failed to parse config file '" << path << "'!\n" << *this << "\n"; 
+            exit(-1);
+        }
+    }
+    void loadFromStream (std::istream& is) {
+        if (!(is >> *this)) {
+            std::cerr << "Failed to load config! Current values:\n" << *this << "\n";
+            exit(-1);
+        }
+    }
 };
 
 
-int main () {
+int main (int argc, const char** argv) {
     std::cout << "Programmer:       Seiji Emery\n";
     std::cout << "Programmer's ID:  M00202623\n";
     std::cout << "File:             " << __FILE__ << '\n' << std::endl;
 
+    const char* configPath = "simulation.txt";
+    switch (argc) {
+        case 1: break;
+        case 2: 
+            if (strcmp(argv[1], "setup") == 0) {
+                ofstream file { configPath }; file << "4\n2.5\n8\n3\n10\n50" << std::endl;
+            } else {
+                configPath = argv[1];
+            }
+            break;
+        default: std::cerr << "usage: " << argv[0] << " [<simulation.txt>] | setup\n"; exit(-1);
+    }
+
     ServerConfig config;
+    config.loadFromFile(configPath);
     std::cout << config;
     return 0;
 }
