@@ -76,6 +76,9 @@ struct ServerConfig {
             case 2: 
                 if (strcmp(argv[1], "setup") == 0) {
                     ofstream file { configPath }; file << "4\n2.5\n8\n3\n10\n50" << std::endl;
+                    std::cout << "Generated default config file '" << configPath << "' in current directory\n";
+                    std::cout << "Re-run with no arguments to run\n";
+                    exit(0);
                 } else {
                     configPath = argv[1];
                 }
@@ -270,6 +273,7 @@ int main (int argc, const char** argv) {
     std::cout << "Programmer:       Seiji Emery\n";
     std::cout << "Programmer's ID:  M00202623\n";
     std::cout << "File:             " << __FILE__ << '\n' << std::endl;
+
     return Simulation(argc, argv).run();
 }
 

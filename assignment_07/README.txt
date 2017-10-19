@@ -5,4 +5,4 @@ Build instructions:
     git clone https://github.com/SeijiEmery/comp220
     cd comp220/assignment_07
     mkdir build; cd build
-    cmake ..; make test run
+    cmake ..; make test setup run
