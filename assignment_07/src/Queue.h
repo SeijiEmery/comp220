@@ -10,6 +10,9 @@
 #ifndef Queue_h
 #define Queue_h
 #include <cassert>
+#include <iterator>     // std::iterator
+#include <type_traits>  // std::remove_cv
+
 
 // Simple reference stack implementation based on a linked list.
 template <typename T>
@@ -83,6 +86,37 @@ public:
         assert(empty());
         assert(length == 0);
     }
+
+private:
+    template <typename V, typename UT = std::remove_cv<V>>
+    class Iterator : std::iterator<std::forward_iterator_tag, UT, std::ptrdiff_t, V*, V&> {
+        Node* node = nullptr;
+        Iterator (Node* node) : node(node) {}
+        friend class Queue<T>;
+    public:
+        Iterator () {}
+        operator bool () const { return node != nullptr; }
+        void swap (Iterator& other) noexcept { std::swap(node, other.node); }
+        Iterator& operator++ ()   { assert(node); node = node->prev;    return *this; }
+        Iterator operator++ (int) { assert(node); Iterator copy(*this); return (*this)++, copy; }
+        template <typename U> bool operator== (const Iterator<U>& other) const { return node == other.node; }
+        template <typename U> bool operator!= (const Iterator<U>& other) const { return node != other.node; }
+        V& operator* () const { assert(node); return node->value; }
+        V& operator-> () const { assert(node); return node->value; }
+        operator Iterator<const V> () const { return Iterator<const V>(node); }
+    };
+public:
+    typedef Iterator<T>         iterator;
+    typedef Iterator<const T>   const_iterator;
+
+    iterator begin () { return iterator(head); }
+    iterator end   () { return iterator(nullptr); }
+
+    const_iterator begin () const { return const_iterator(head); }
+    const_iterator end   () const { return const_iterator(nullptr); }
+
+    const_iterator cbegin () const { return begin(); }
+    const_iterator cend   () const { return end(); }
 };
 
 #endif // Queue_h
