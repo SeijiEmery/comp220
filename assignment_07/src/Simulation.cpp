@@ -94,7 +94,7 @@ public:
     size_t arrivalTime;
     size_t serviceEndTime;
 
-    Customer () : id(' '), arrivalTime(0), serviceEndTime(0) {}
+    Customer () : id('#'), arrivalTime(0), serviceEndTime(0) {}
     Customer (size_t arrivalTime, size_t serviceEndTime)
         : id(nextId = ((nextId+1 - 'A') % 26) + 'A'),
           arrivalTime(arrivalTime), serviceEndTime(serviceEndTime) 
@@ -120,6 +120,10 @@ public:
     }
     void serve (Customer customer) {
         this->customer = customer;
+    }
+    friend std::ostream& operator << (std::ostream& os, const Server& server) {
+        return os << server.customer;
+        // return os << (server.busy() ? server.customer.id : ' ');
     }
 };
 
@@ -158,7 +162,7 @@ public:
 class Simulation {
     ServerConfig          config;
     FixedArray<Server>    servers;
-    Queue<Customer>       customers;
+    Queue<Customer>       waitQueue;
     size_t                currentTime = 0;
     bool                  isRunning = true;
 public:
@@ -171,11 +175,34 @@ public:
     }
     int run () {
         std::cout << config << '\n';
-        while (running()) {
+        while (1) {
             std::cout << "Time: " << currentTime << '\n';
             simulateStep();
+
+            std::cout << "-----------------------------\n";
+            std::cout << "server now-serving wait-queue\n";
+            std::cout << "------ ----------- ----------\n";
+
+            size_t i = 0;
+            for (const auto& server : servers) {
+                std::cout << std::setw(3) << i << std::setw(7) << server;
+                if (i++ == 0) {
+                    std::cout << std::setw(12);
+                    for (const auto& customer : waitQueue) {
+                        std::cout << customer;
+                    }
+                }
+                std::cout << '\n';
+            }
+            std::cout << "-----------------------------\n";
+
+            if (running()) {
+                std::cout << "Press ENTER to continue...\n\n";
+            } else {
+                std::cout << "Done!\n";
+                return 0;
+            }
         }
-        return 0;
     }
     bool running () const {
         return isRunning;
@@ -183,6 +210,12 @@ public:
     void simulateStep () {
         for (auto& server : servers) {
             server.simulate(currentTime);
+            if ((currentTime % 2) == 0 || (currentTime % 5) == 0 || (currentTime % 7) == 0) {
+                waitQueue.push(Customer(currentTime, currentTime + 10));
+            }
+            if ((currentTime % 3) == 0 || (currentTime % 4) == 0 || (currentTime % 10) == 0) {
+                waitQueue.pop();
+            }
         }
         if (currentTime < config.arrivalEndTime) {
             // ...
