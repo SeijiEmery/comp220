@@ -19,9 +19,10 @@ using namespace std;
 #include <cstdlib>
 #include <cmath>
 #include "Queue.h"
+#include "DynamicArray.h"
 
 struct ServerConfig {
-    size_t count          = 0;  // number of servers
+    size_t serverCount    = 0;  // number of servers
     double arrivalRate    = 0;  // customer arrival rate
     size_t maxQueueLength = 0;  // maximum wait queue length
     size_t minServiceTime = 0;  // min service time, in minutes
@@ -32,7 +33,7 @@ struct ServerConfig {
 
     friend std::istream& operator>> (std::istream& is, ServerConfig& config) {
         return is 
-            >> config.count
+            >> config.serverCount
             >> config.arrivalRate
             >> config.maxQueueLength
             >> config.minServiceTime
@@ -43,7 +44,7 @@ struct ServerConfig {
 
     friend std::ostream& operator<< (std::ostream& os, const ServerConfig& config) {
         constexpr size_t indent = 2;
-        return os << "number of servers: " << std::setw(indent+4) << config.count << '\n'
+        return os << "number of servers: " << std::setw(indent+4) << config.serverCount << '\n'
             << "customer arrival rate: " << std::setw(indent) << config.arrivalRate 
             << " per minute, for " << config.arrivalEndTime << " minutes" << '\n'
             << "maximum queue length: " << std::setw(indent+1) << config.maxQueueLength << '\n'
@@ -93,6 +94,7 @@ public:
     size_t arrivalTime;
     size_t serviceEndTime;
 
+    Customer () : id(' '), arrivalTime(0), serviceEndTime(0) {}
     Customer (size_t arrivalTime, size_t serviceEndTime)
         : id(nextId = ((nextId+1 - 'A') % 26) + 'A'),
           arrivalTime(arrivalTime), serviceEndTime(serviceEndTime) 
@@ -108,18 +110,100 @@ public:
 };
 char Customer::nextId = 'Z';
 
+class Server {
+    bool        isBusy = false;
+    Customer    customer;
+public:
+    bool busy () const { return isBusy; }
+    void simulate (size_t time) {
+        isBusy = time <= customer.serviceEndTime;
+    }
+    void serve (Customer customer) {
+        this->customer = customer;
+    }
+};
+
+
+// Slightly extended version of DynamicArray that adds iterator support and a handful of 
+// other features. Since we're only using this to store servers, we don't need to resize 
+// etc – as such this array type is super minimalistic (b/c KISS).
+//
+template <typename T>
+class FixedArray : public DynamicArray<T> {
+    size_t _size = 0;
+public:
+    FixedArray (size_t size, const T& value) { fill(size, value); }
+    ~FixedArray () {}
+
+    size_t size () const { return _size; }
+
+    void fill (size_t n, const T& value) {
+        _size = n;
+        while (n --> 0) {
+            (*this)[n] = value;
+        }
+    }
+
+    T* begin () { return &(*this)[0]; }
+    T* end   () { return &(*this)[size()]; }
+
+    const T* begin () const { return &(*this)[0]; }
+    const T* end   () const { return &(*this)[size()]; }
+
+    const T* cbegin () const { return begin(); }
+    const T* cend   () const { return end(); }
+};
+
+
+class Simulation {
+    ServerConfig          config;
+    FixedArray<Server>    servers;
+    Queue<Customer>       customers;
+    size_t                currentTime = 0;
+    bool                  isRunning = true;
+public:
+    Simulation (int argc, const char** argv)
+        : config(argc, argv)
+        , servers(config.serverCount, Server())
+    {
+        assert(servers.size() == config.serverCount);
+        assert(servers.capacity() >= servers.size());
+    }
+    int run () {
+        std::cout << config << '\n';
+        while (running()) {
+            std::cout << "Time: " << currentTime << '\n';
+            simulateStep();
+        }
+        return 0;
+    }
+    bool running () const {
+        return isRunning;
+    }
+    void simulateStep () {
+        for (auto& server : servers) {
+            server.simulate(currentTime);
+        }
+        if (currentTime < config.arrivalEndTime) {
+            // ...
+        } else {
+            isRunning = false;
+            for (const auto& server : servers) {
+                if (server.busy()) {
+                    isRunning = true;
+                }
+            }
+        }
+        ++currentTime;
+    }
+};
+
 
 int main (int argc, const char** argv) {
     std::cout << "Programmer:       Seiji Emery\n";
     std::cout << "Programmer's ID:  M00202623\n";
     std::cout << "File:             " << __FILE__ << '\n' << std::endl;
-
-    ServerConfig config (argc, argv);
-    std::cout << config;
-
-    std::cout << Customer(1,4) << Customer(2,8) << Customer(9,7) << "\n";
-
-    return 0;
+    return Simulation(argc, argv).run();
 }
 
 

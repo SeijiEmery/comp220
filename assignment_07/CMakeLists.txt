@@ -13,6 +13,9 @@ else()
         message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
 endif()
 
+# import DynamicArray.h from assignment_03
+include_directories(src ../assignment_03/src)
+
 # executables: main program + testdriver
 add_executable(simulation   src/Simulation.cpp)
 add_executable(testdriver   src/Queue.TestDriver.cpp)
