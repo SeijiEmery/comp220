@@ -197,13 +197,13 @@ public:
             simulateStep();
             display();
             if (running()) {
-                std::cout << "Press ENTER to continue...\n\n";
+                std::cout << "Press ENTER to continue...\n";
+                std::cin.get();
             } else {
                 std::cout << "Done!\n";
                 return 0;
             }   
         }
-        return 0;
     }
 private:
     bool running () const {
@@ -240,8 +240,8 @@ private:
             }
         }
 
+        // Move any pending customers to non-busy servers
         if (!waitQueue.empty()) {
-            // Move any pending customers to non-busy servers
             for (auto& server : servers) {
                 if (!server.busy()) {
                     server.serve(waitQueue.front(), currentTime,
@@ -251,17 +251,16 @@ private:
                 }
             }
         }
+
+        // Count busy servers
         size_t busyServers = 0;
         for (const auto& server : servers) {
             if (server.busy()) {
                 ++busyServers;
             }
         }
-
-        std::cout << "busy servers: " << busyServers << '\n';
+        // std::cout << "busy servers: " << busyServers << '\n';
         isRunning = currentTime < config.arrivalEndTime || busyServers > 0;
-
-        // Advance current time
         ++currentTime;
     }
 };
