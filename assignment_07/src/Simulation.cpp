@@ -101,9 +101,6 @@ public:
     {}
     Customer (const Customer&) = default;
     Customer& operator= (const Customer&) = default;
-    // Customer (const Customer& other) 
-    //     : id(other.id), arrivalTime(other.arrivalTime), serviceEndTime(other.serviceEndTime)
-    // {}
     friend std::ostream& operator << (std::ostream& os, const Customer& customer) {
         return os << customer.id;
     }
@@ -116,14 +113,15 @@ class Server {
 public:
     bool busy () const { return isBusy; }
     void simulate (size_t time) {
-        isBusy = time <= customer.serviceEndTime;
+        isBusy = time < customer.serviceEndTime;
     }
-    void serve (Customer customer) {
-        this->customer = customer;
+    void serve (Customer customer_, size_t currentTime, size_t serviceDuration) {
+        customer = customer_;
+        customer.serviceEndTime = currentTime + serviceDuration;
+        simulate(currentTime);
     }
     friend std::ostream& operator << (std::ostream& os, const Server& server) {
-        return os << server.customer;
-        // return os << (server.busy() ? server.customer.id : ' ');
+        return os << (server.busy() ? server.customer.id : '-');
     }
 };
 
@@ -158,6 +156,25 @@ public:
     const T* cend   () const { return end(); }
 };
 
+// Given an average event rate and probability threshold on [0, 1], calculates the number of events 
+// that would have occured per unit time
+// from https://gist.github.com/SeijiEmery/76aa7637e7ce5b38bf5e133d721978f6
+//
+size_t poisson_k (double rate, double threshold) {
+    double p = exp(-rate);
+    size_t k = 0;
+    while (threshold > p && k < 100) {
+        threshold -= p;
+        p *= rate / ++k;
+    }
+    return k;
+}
+template <typename T> T randUniform () {
+    return static_cast<T>(rand()) / RAND_MAX;
+}
+template <typename T> T randRange (T min, T max) {
+    return randUniform<T>() * (max - min) + min;
+}
 
 class Simulation {
     ServerConfig          config;
@@ -175,58 +192,76 @@ public:
     }
     int run () {
         std::cout << config << '\n';
+        bool tminus = false;
         while (1) {
-            std::cout << "Time: " << currentTime << '\n';
             simulateStep();
-
-            std::cout << "-----------------------------\n";
-            std::cout << "server now-serving wait-queue\n";
-            std::cout << "------ ----------- ----------\n";
-
-            size_t i = 0;
-            for (const auto& server : servers) {
-                std::cout << std::setw(3) << i << std::setw(7) << server;
-                if (i++ == 0) {
-                    std::cout << std::setw(12);
-                    for (const auto& customer : waitQueue) {
-                        std::cout << customer;
-                    }
-                }
-                std::cout << '\n';
-            }
-            std::cout << "-----------------------------\n";
-
+            display();
             if (running()) {
                 std::cout << "Press ENTER to continue...\n\n";
             } else {
                 std::cout << "Done!\n";
                 return 0;
-            }
+            }   
         }
+        return 0;
     }
+private:
     bool running () const {
         return isRunning;
+    }
+    void display () {
+        std::cout << "Time: " << currentTime << '\n';
+        std::cout << "-----------------------------\n";
+        std::cout << "server now-serving wait-queue\n";
+        std::cout << "------ ----------- ----------\n";
+
+        size_t i = 0;
+        for (const auto& server : servers) {
+            std::cout << std::setw(3) << i << std::setw(7) << server;
+            if (i++ == 0) {
+                std::cout << std::setw(12);
+                for (const auto& customer : waitQueue) {
+                    std::cout << customer;
+                }
+            }
+            std::cout << '\n';
+        }
+        std::cout << "-----------------------------\n";
     }
     void simulateStep () {
         for (auto& server : servers) {
             server.simulate(currentTime);
-            if ((currentTime % 2) == 0 || (currentTime % 5) == 0 || (currentTime % 7) == 0) {
-                waitQueue.push(Customer(currentTime, currentTime + 10));
-            }
-            if ((currentTime % 3) == 0 || (currentTime % 4) == 0 || (currentTime % 10) == 0) {
-                waitQueue.pop();
-            }
         }
         if (currentTime < config.arrivalEndTime) {
-            // ...
-        } else {
-            isRunning = false;
-            for (const auto& server : servers) {
-                if (server.busy()) {
-                    isRunning = true;
+            // Create new arrivals and push to waitQueue
+            size_t arrivals = poisson_k(config.arrivalRate, randUniform<double>());
+            while (arrivals-- && waitQueue.size() < config.maxQueueLength) {
+                waitQueue.push(Customer(currentTime, 0)); 
+            }
+        }
+
+        if (!waitQueue.empty()) {
+            // Move any pending customers to non-busy servers
+            for (auto& server : servers) {
+                if (!server.busy()) {
+                    server.serve(waitQueue.front(), currentTime,
+                        randRange(static_cast<double>(config.minServiceTime), static_cast<double>(config.maxServiceTime)));
+                    waitQueue.pop();
+                    if (waitQueue.empty()) break;
                 }
             }
         }
+        size_t busyServers = 0;
+        for (const auto& server : servers) {
+            if (server.busy()) {
+                ++busyServers;
+            }
+        }
+
+        std::cout << "busy servers: " << busyServers << '\n';
+        isRunning = currentTime < config.arrivalEndTime || busyServers > 0;
+
+        // Advance current time
         ++currentTime;
     }
 };
