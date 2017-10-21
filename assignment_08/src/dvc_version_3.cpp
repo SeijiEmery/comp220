@@ -485,49 +485,47 @@ struct DefaultHash {
 };
 
 template <size_t HASHTABLE_SIZE = 1024, typename Hash = DefaultHash>
-struct HashedSubjectCounter {
-    struct Wrapped : public AIS<kCounter, Wrapped> {
-        struct Instance {
-        private:
-            bool emptyHash (DynamicArray<Subject>& subjects, size_t hash) const { 
-                return subjects[hash].count == 0; 
-            }
-            bool hashEq    (DynamicArray<Subject>& subjects, size_t hash, const Slice<const char*>& key) const {
-                return strncmp(subjects[hash].name.c_str(), key.start(), key.size()) == 0;
-            }
-        public:
-            template <typename SubjectModel>
-            void insert (SubjectModel& model, const ParseResult& result) {
-                const auto& subject = result.subjectStr;
-                size_t subjectHash = Hash::hashString((const uint8_t*)(subject.start()), subject.size());
-                subjectHash %= HASHTABLE_SIZE;
-                if (emptyHash(model.subjects, subjectHash)) {
-                    model.subjects[subjectHash] = { subject.str(), 1, subjectHash };
-                } else {
-                    while (!hashEq(model.subjects, subjectHash, subject)) {
-                        subjectHash = (subjectHash + 1) % HASHTABLE_SIZE;
-                        if (emptyHash(model.subjects, subjectHash)) {
-                            model.subjects[subjectHash] = { subject.str(), 1, subjectHash };
-                            return;
-                        }
+struct HashedSubjectCounter : public AIS<kCounter, HashedSubjectCounter<HASHTABLE_SIZE, Hash>> {
+    struct Instance {
+    private:
+        bool emptyHash (DynamicArray<Subject>& subjects, size_t hash) const { 
+            return subjects[hash].count == 0; 
+        }
+        bool hashEq    (DynamicArray<Subject>& subjects, size_t hash, const Slice<const char*>& key) const {
+            return strncmp(subjects[hash].name.c_str(), key.start(), key.size()) == 0;
+        }
+    public:
+        template <typename SubjectModel>
+        void insert (SubjectModel& model, const ParseResult& result) {
+            const auto& subject = result.subjectStr;
+            size_t subjectHash = Hash::hashString((const uint8_t*)(subject.start()), subject.size());
+            subjectHash %= HASHTABLE_SIZE;
+            if (emptyHash(model.subjects, subjectHash)) {
+                model.subjects[subjectHash] = { subject.str(), 1, subjectHash };
+            } else {
+                while (!hashEq(model.subjects, subjectHash, subject)) {
+                    subjectHash = (subjectHash + 1) % HASHTABLE_SIZE;
+                    if (emptyHash(model.subjects, subjectHash)) {
+                        model.subjects[subjectHash] = { subject.str(), 1, subjectHash };
+                        return;
                     }
-                    ++model.subjects[subjectHash].count;
                 }
+                ++model.subjects[subjectHash].count;
             }
-            template <typename SubjectModel>
-            void finalize (SubjectModel& model) {
-                model.subjectCount = 0;
-                for (size_t i = 0, j = 0; i < HASHTABLE_SIZE; ++i) {
-                if (model.subjects[i].count != 0) {
-                    if (i != model.subjectCount) {
-                        std::swap(model.subjects[i], model.subjects[model.subjectCount]);
-                        // ++swapCount;
-                    }
-                    ++model.subjectCount;
+        }
+        template <typename SubjectModel>
+        void finalize (SubjectModel& model) {
+            model.subjectCount = 0;
+            for (size_t i = 0, j = 0; i < HASHTABLE_SIZE; ++i) {
+            if (model.subjects[i].count != 0) {
+                if (i != model.subjectCount) {
+                    std::swap(model.subjects[i], model.subjects[model.subjectCount]);
+                    // ++swapCount;
                 }
+                ++model.subjectCount;
             }
-            }
-        };
+        }
+        }
     };
 };
 
@@ -741,7 +739,7 @@ int main (int argc, const char** argv) {
         // FakeReader <1000000000>,
         EvenFasterParser,
         HashedCourseFilterer,
-        HashedSubjectCounter<1024, DefaultHash>::Wrapped,
+        HashedSubjectCounter<1024, DefaultHash>,
         BubbleSort
     >(path);
     #else
