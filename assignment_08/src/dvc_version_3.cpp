@@ -3,7 +3,7 @@
 #include <fstream>
 #include <string>
 #include <cstdlib>
-
+#include <type_traits>
 
 
 //
@@ -56,16 +56,18 @@ typedef size_t hash_t;
 
 template <typename T>
 struct Slice {
-    T start, end;
-
+private:
+    T _start; size_t _size;
+public:
     Slice () : Slice(nullptr, 0) {}
-    Slice (T start, T end) : start(start), end(end) {}
-    Slice (T start, size_t size) : start(start), end (&start[size]) {}
+    Slice (T start, size_t size) : _start(start), _size(size) {}
     Slice (const Slice&) = default;
     Slice& operator= (const Slice&) = default;
-    operator bool () const { return start != nullptr; }
-    size_t size () const { assert(start >= end); return start - end; }
-    std::string str () const { return std::string(start, size()); }
+    operator bool () const { return _start != nullptr; }
+    T start () const { return _start; } 
+    T end   () const { return _start + _size; }
+    size_t size () const { return _size; }
+    std::string str () const { return std::string(_start, _size); }
 };
 
 
@@ -74,42 +76,66 @@ struct Slice {
 // ACTOR FRAMEWORK
 //
 
-enum class ActorTag {
-    Allocator, SubjectModel, Parser, Reader, Filterer, Counter, Sorter
-};
+// enum class ActorTag : int {
+//     Allocator, SubjectModel, Parser, Reader, Filterer, Counter, Sorter
+// };
 
-template <ActorTag tag, typename Actor>
+enum {
+    kAllocator, kSubjectModel, kParser, kReader, kFilterer, kCounter, kSorter
+};
+typedef int ActorTag;
+
+template <int tag, typename Actor>
 struct BaseActionable {
     Actor& actor;
 
-    BaseActionable  (Actor& actor) : actor(actor) { actor.enter(*this); }
-    ~BaseActionable () { actor.exit(*this); }
+    BaseActionable (Actor& actor) : actor(actor) { /*actor.enter(*this);*/ }
+    BaseActionable (const BaseActionable&) = delete;
+    BaseActionable& operator= (const BaseActionable&) = delete;
+    BaseActionable (BaseActionable&&) = default;
+    BaseActionable& operator= (BaseActionable&&) = default;
+    ~BaseActionable () { /*actor.exit(*this);*/ }
 };
 
-template <ActorTag tag, typename Actor, typename Allocator>
+template <int tag, typename Actor, typename Allocator>
 struct Actionable : public BaseActionable<tag, Actor> {
     Allocator& allocator;
 
     Actionable (Actor& actor, Allocator& allocator) 
-        : BaseActionable<tag, Allocator>(actor),
+        : BaseActionable<tag, Actor>(actor),
         allocator(allocator)
     {}
+    Actionable (const Actionable&) = delete;
+    Actionable& operator= (const Actionable&) = delete;
+    Actionable (Actionable&&) = default;
+    Actionable& operator= (Actionable&&) = default;
 };
 
-template <ActorTag tag, typename Impl>
+template <int tag, typename Impl>
 struct AIS {
-    template <typename Actor, typename Allocator>
-    static auto create (Actor& actor, Allocator& allocator) -> Instance<Actor, Allocator> {
-        return Instance(actor, allocator);
-    }
-    template <typename Actor, typename Allocator>
-    struct Instance : public Actionable<tag, Actor, Allocator>, public T::Instance {
+    template <int Tag, typename Actor, typename Allocator>
+    struct Instance : public Actionable<Tag, Actor, Allocator>, public Impl::Instance {
+        typedef Impl Parent;
+
         template <typename... Args>
-        Instance (Actor& actor, Allocator& allocator, Args args...) : 
-            Actionable<tag, Actor, Allocator>(), 
-            T::Instance(args...) 
-        {}
-        ~Instance () {}
+        Instance (Actor& actor, Allocator& allocator, Args... args) : 
+            Actionable<Tag, Actor, Allocator>(actor, allocator), 
+            Impl::Instance(args...) 
+        {
+            static_cast<BaseActionable<Tag,Actor>*>(this)->actor.enter(*this);
+        }
+        Instance (const Instance&) = delete;
+        Instance& operator= (const Instance&) = delete;
+        Instance (Instance&&) = default;
+        Instance& operator= (Instance&&) = default;
+        ~Instance () {
+            static_cast<BaseActionable<Tag,Actor>*>(this)->actor.exit(*this);
+        }
+    };
+
+    template <typename Actor, typename Allocator, typename... Args>
+    static Instance<tag, Actor, Allocator> create (Actor& actor, Allocator& allocator, Args... args) {
+        return Instance<tag, Actor,Allocator>(actor, allocator, args...);
     }
 };
 
@@ -120,7 +146,7 @@ struct AIS {
 //
 
 struct BaseAllocator {
-private:
+// private:
     static BaseAllocator    rootAllocator;
     static BaseAllocator*   currentAllocator;
     BaseAllocator*          prevAllocator;
@@ -131,56 +157,81 @@ public:
     BaseAllocator () : prevAllocator(currentAllocator) {
         currentAllocator = this;
     }
+    BaseAllocator (const BaseAllocator&) = delete;
+    BaseAllocator& operator= (const BaseAllocator&) = delete;
+    BaseAllocator (BaseAllocator&&) = default;
+    BaseAllocator& operator= (BaseAllocator&&) = default;
     ~BaseAllocator () {
         currentAllocator = prevAllocator;
+    }
+    friend std::ostream& operator<< (std::ostream& os, const BaseAllocator& allocator) {
+        return os << "Allocator:\n\t"
+            << allocator.bytesAllocated << " bytes allocated in " << allocator.numAllocations << " allocations\n\t"
+            << allocator.bytesDeallocated << " bytes freed in " << allocator.numDeallocations << " deallocations\n";
     }
 
     void* allocate (size_t size) {
         ++numAllocations;
         bytesAllocated += size;
 
-        size_t* mem = reinterpret_cast<size_t*>(malloc(size));
+        size_t* mem = (size_t*)(std::malloc(size + sizeof(size_t)));
+        assert(mem != nullptr);
         mem[0] = size;
-        return reinterpret_cast<void*>(mem[1]); 
+        return (void*)(&mem[1]);
     }
     void deallocate (void* ptr) {
-        size_t* mem = &reinterpret_cast<size_t*>(ptr)[-1];
+        size_t* mem = &((size_t*)ptr)[-1];
         size_t size = mem[0];
 
         ++numDeallocations;
         bytesDeallocated += size;
-        free(reinterpret_cast<void*>(ptr));
-    }
-
-    friend void* operator new (size_t size) throw(std::bad_alloc) {
-        void* ptr = currentAllocator->allocate(size);
-        if (!ptr) throw std::bad_alloc();
-        return ptr;
-    }
-    friend void operator delete (void* ptr) throw() {
-        return currentAllocator->deallocate(ptr);
+        std::free(((void*)mem));
     }
 };
 BaseAllocator BaseAllocator::rootAllocator;
-BaseAllcator* BaseAllocator::currentAllocator = &BaseAllocator::rootAllocator;
+BaseAllocator* BaseAllocator::currentAllocator = &BaseAllocator::rootAllocator;
+
+void* operator new (size_t size) throw(std::bad_alloc) {
+    assert(BaseAllocator::currentAllocator != nullptr);
+    void* ptr = BaseAllocator::currentAllocator->allocate(size);
+    if (!ptr) throw std::bad_alloc();
+    return ptr;
+}
+void operator delete (void* ptr) throw() {
+    BaseAllocator::currentAllocator->deallocate(ptr);
+}
 
 
 struct DefaultAllocator {
-    template <typename Actor>
-    struct Instance : public BaseActionable<ActorTag::Allocator, Actor>, public BaseAllocator {
-        DefaultAllocator (Actor& actor)
-            : BaseActionable<ActorTag::Allocator, Actor>(actor), BaseAllocator() 
-        {}
-        ~DefaultAllocator () {}
+    template <int Tag, typename Actor>
+    struct Instance : 
+        public BaseActionable<Tag, Actor>, 
+        public BaseAllocator 
+    {    
+        typedef DefaultAllocator Parent;
+
+        Instance (Actor& actor) : 
+            BaseActionable<Tag, Actor>(actor), 
+            BaseAllocator() 
+        {
+            actor.enter(*this);
+        }
+        Instance (const Instance&) = delete;
+        Instance& operator= (const Instance&) = delete;
+        Instance (Instance&&) = default;
+        Instance& operator= (Instance&&) = default;
+        ~Instance () {
+            static_cast<BaseActionable<Tag,Actor>*>(this)->actor.exit(*this);
+        }
 
         template <typename T>
         T* allocate (size_t count = 1) {
-            actor.onAllocation<T>(count);
+            // actor.onAllocation<T>(count);
             return static_cast<T*>(allocate(sizeof(T) * count));
         }
         template <typename T>
         void deallocate (T* ptr) {
-            actor.onDeallocation<T>(ptr);
+            // actor.onDeallocation<T>(ptr);
             deallocate(static_cast<void*>(ptr));
         }
 
@@ -194,6 +245,11 @@ struct DefaultAllocator {
             deallocate(ptr);
         }
     };
+
+    template <typename Actor>
+    static Instance<kAllocator, Actor> create (Actor& actor) {
+        return Instance<kAllocator, Actor>(actor);
+    }
 };
 
 
@@ -209,9 +265,13 @@ struct Subject {
     Subject () = default;
     Subject (std::string name, size_t count, size_t hashid)
         : name(name), count(count), hashid(hashid) {}
+
+    friend std::ostream& operator<< (std::ostream& os, const Subject& subject) {
+        return os << "{ " << subject.name << ", " << subject.count << " (" << subject.hashid << " }";
+    }
 };
 
-struct SubjectModel : public AIS<ActorTag::SubjectModel, SubjectModel> {
+struct SubjectModel : public AIS<kSubjectModel, SubjectModel> {
     struct Instance {
         DynamicArray<Subject> subjects;
         size_t subjectCount = 0;
@@ -224,17 +284,16 @@ struct SubjectModel : public AIS<ActorTag::SubjectModel, SubjectModel> {
 // FILE READING ALGORITHMS
 //
 
-struct IfstreamReader : public AIS<ActorTag::Reader, IfstreamReader> {
+struct IfstreamReader : public AIS<kReader, IfstreamReader> {
     struct Instance {
         std::ifstream file;
-        std::string   line;
+        std::string   line_;
     public:
         Instance (const char* path) : file(path) {}
-        operator bool () const { return file; }
-        const char* line () { return getline(file, line), line.c_str(); }
+        operator bool () const { return bool(file); }
+        const char* line () { return getline(file, line_), line_.c_str(); }
     };
 };
-
 
 
 //
@@ -244,16 +303,28 @@ struct IfstreamReader : public AIS<ActorTag::Reader, IfstreamReader> {
 struct ParseResult {
     hash_t              courseHash = 0;
     Slice<const char*>  subjectStr;
+
+    friend std::ostream& operator<< (std::ostream& os, ParseResult& result) {
+        return os << "(hash: " << result.courseHash << ", subject: " << result.subjectStr.str() << ")";
+    }
 };
 
-struct FastParser : public AIS<ActorTag::Parser, IfstreamReader> {
+// Utility macro: assembles a 32-bit integer out of 4 characters / bytes.
+// Assumes little endian, won't work on PPC / ARM (would just need to swap order).
+// This is useful b/c we can replace strcmp() for very small, fixed strings
+// (eg. "Fall ", "Spring "), and it's usable in a switch statement.
+#define PACK_STR_4(a,b,c,d) \
+    (((uint32_t)d << 24) | ((uint32_t)c << 16) | ((uint32_t)b << 8) | ((uint32_t)a))
+
+
+struct FastParser : public AIS<kParser, FastParser> {
     struct Instance {
         bool parse (const char* line, ParseResult& result) {
             size_t semester = 0;
             switch (((uint32_t*)line)[0]) {
                 case PACK_STR_4('S','p','r','i'): assert((((uint32_t*)line)[1] & 0x00FFFFFF) == PACK_STR_4('n','g',' ','\0')); line += 7; semester = 0; break;
                 case PACK_STR_4('S','u','m','m'): assert((((uint32_t*)line)[1] & 0x00FFFFFF) == PACK_STR_4('e','r',' ','\0')); line += 7; semester = 1; break;
-                case PACK_STR_4('F','a','l','l'): assert(s[4] == ' ');                                                         line += 5; semester = 2; break;
+                case PACK_STR_4('F','a','l','l'): assert(line[4] == ' ');                                                         line += 5; semester = 2; break;
                 case PACK_STR_4('W','i','n','t'): assert((((uint32_t*)line)[1] & 0x00FFFFFF) == PACK_STR_4('e','r',' ','\0')); line += 7; semester = 3; break;
                 default: return false;
             }
@@ -269,24 +340,29 @@ struct FastParser : public AIS<ActorTag::Parser, IfstreamReader> {
             assert(isupper(line[0]));
             const char* end = strchr(line, '-');
             assert(end != nullptr && end != line);
-            result.subjectStr = { line, end };
+            result.subjectStr = { line, (size_t)(end - line) };
             return true;
         }
     };
 };
 
+#undef PACK_STR_4
 
 
 //
 // FILTERING ALGORITHMS
 //
 
-struct HashedCourseFilterer : public AIS<ActorTag::Filterer, HashedCourseFilterer> {
+struct HashedCourseFilterer : public AIS<kFilterer, HashedCourseFilterer> {
     struct Instance {
         Bitset hashset;
         size_t dupCount    = 0;
         size_t uniqueCount = 0;
     public:
+        Instance () : hashset(0) {}
+
+
+        template <typename SubjectModel>
         bool filter (const ParseResult& result, SubjectModel& model) {
             if (hashset.get(result.courseHash)) {
                 ++dupCount;
@@ -300,7 +376,13 @@ struct HashedCourseFilterer : public AIS<ActorTag::Filterer, HashedCourseFiltere
     };
 };
 
-
+struct NoCourseFilter : public AIS<kFilterer, NoCourseFilter> {
+    struct Instance {
+        template <typename SubjectModel> bool filter (const ParseResult& result, SubjectModel& model) {
+            return true;
+        }
+    };
+};
 
 //
 // SUBJECT COUNTING ALGORITHMS
@@ -319,44 +401,67 @@ struct DefaultHash {
 
 template <size_t HASHTABLE_SIZE = 1024, typename Hash = DefaultHash>
 struct HashedSubjectCounter {
-    struct Instance : public AIS<ActorTag::Counter, Instance> {
+    struct Wrapped : public AIS<kCounter, Wrapped> {
         struct Instance {
         private:
             bool emptyHash (DynamicArray<Subject>& subjects, size_t hash) const { 
                 return subjects[hash].count == 0; 
             }
             bool hashEq    (DynamicArray<Subject>& subjects, size_t hash, const Slice<const char*>& key) const {
-                return strcmpl(subjects[hash].name, key.start, key.size()) == 0;
+                return strncmp(subjects[hash].name.c_str(), key.start(), key.size()) == 0;
             }
         public:
-            void insert (DynamicArray<Subject>& subjects, const ParseResult& result) {
+            template <typename SubjectModel>
+            void insert (SubjectModel& model, const ParseResult& result) {
                 const auto& subject = result.subjectStr;
-                size_t subjectHash = Hash::hashString(subject.start, subject.size());
+                size_t subjectHash = Hash::hashString((const uint8_t*)(subject.start()), subject.size());
                 subjectHash %= HASHTABLE_SIZE;
-                if (emptyHash(subjects, subjectHash)) {
-                    subjects[subjectHash] = { subject.str(), 1, subjectHash };
+                if (emptyHash(model.subjects, subjectHash)) {
+                    model.subjects[subjectHash] = { subject.str(), 1, subjectHash };
                 } else {
-                    while (!hashEq(subjects, subjectHash, subject)) {
+                    while (!hashEq(model.subjects, subjectHash, subject)) {
                         subjectHash = (subjectHash + 1) % HASHTABLE_SIZE;
-                        if (emptyHash(subjects, subjectHash)) {
-                            subjects[subjectHash] = { subject.str(), 1, subjectHash };
+                        if (emptyHash(model.subjects, subjectHash)) {
+                            model.subjects[subjectHash] = { subject.str(), 1, subjectHash };
                             return;
                         }
                     }
-                    ++subjects[subjectHash].count;
+                    ++model.subjects[subjectHash].count;
                 }
+            }
+            template <typename SubjectModel>
+            void finalize (SubjectModel& model) {
+                model.subjectCount = 0;
+                for (size_t i = 0, j = 0; i < HASHTABLE_SIZE; ++i) {
+                if (model.subjects[i].count != 0) {
+                    if (i != model.subjectCount) {
+                        std::swap(model.subjects[i], model.subjects[model.subjectCount]);
+                        // ++swapCount;
+                    }
+                    ++model.subjectCount;
+                }
+            }
             }
         };
     };
 };
 
+struct NoSubjectCounter : public AIS<kCounter, NoSubjectCounter> {
+    struct Instance {
+        template <typename SubjectModel>
+        void insert (SubjectModel& model, const ParseResult& result) {}
+
+        template <typename SubjectModel>
+        void finalize (SubjectModel& model) {}
+    };
+};
 
 
 //
 // SORTING ALGORITHMS
 //
 
-struct BubbleSort : public AIS<ActorTag::Sorter, BubbleSort> {
+struct BubbleSort : public AIS<kSorter, BubbleSort> {
     struct Instance {
         size_t swapCount = 0;
 
@@ -368,7 +473,7 @@ struct BubbleSort : public AIS<ActorTag::Sorter, BubbleSort> {
             for (; front != back; ++front) {
                 for (auto second = front; second != back; ++second) {
                     if (front->name > second->name) {
-                        std::swap(front, second);
+                        std::swap(*front, *second);
                         ++swapCount;
                     }
                 }
@@ -377,55 +482,74 @@ struct BubbleSort : public AIS<ActorTag::Sorter, BubbleSort> {
     };
 };
 
+struct NoSort : public AIS<kSorter, NoSort> {
+    struct Instance {
+        template <typename SubjectModel>
+        void sort (SubjectModel& model) {}
+    };
+};
 
 
 //
 // ACTORS (can run actions on ctors / dtors, or on any other custom functions (events) we define via the above Actionables)
 //
 
-#define ACT(tag, action) \
-    template <typename Instance<ActorTag::tag>> void action (const Instance& instance)
-#define ACT_args(tag, action, args...) \
-    template <typename Instance<ActorTag::tag>> void action (const Instance& instance, args)
-#define ACT_allocation(action) \
-    template <typename T, typename Instance<Tag::Allocator>> void action (const Instance& allocator, size_t count)
-
 struct Actor {
-    template <typename ActorTag tag, typename Instance<tag>> void enter (const Instance& instance) {}
-    template <typename ActorTag tag, typename Instance<tag>> void exit  (const Instance& instance) {}
-    ACT_allocation(onAllocation)   {}
-    ACT_allocation(onDeallocation) {}
+    template <typename Instance> void enter (const Instance& instance) {}
+    template <typename Instance> void exit  (const Instance& instance) {}
 };
 
+#define ACT(tag, action) \
+    template <template<int, typename...> class Instance, typename... Args> \
+    struct s_##action<Instance<tag, Args...>> { static void exec (const Instance<tag, Args...>& instance)
+#define ACT_all(action) \
+    template <template<int, typename...> class Instance, int tag, typename... Args> \
+    struct s_##action<Instance<tag, Args...>> { static void exec (const Instance<tag, Args...>& instance)
+#define IMPLEMENT_ACTOR_EVENT(event) \
+    template <typename T> struct s_##event { static void exec (const T&) { /*std::cout << #event "\n";*/ } }; \
+    template <typename T> void event (const T& instance) { return s_##event<T>::exec(instance); }
 
 struct DisplayToCout : public Actor {
-    ACT(Parser, enter) { std::cout << "Parsing lines...\n"; }
-    ACT(Parser, exit)  { std::cout << "Finished parsing\n"; }
-    ACT(SubjectModel, exit) {
-        std::cout << instance.subjects.size() << " subjects:\n";
-        for (const auto& subject : instance.subjects) {
-            std::cout << subject.name << '\n';
-        }
-    }
+    IMPLEMENT_ACTOR_EVENT(enter)
+    IMPLEMENT_ACTOR_EVENT(exit)
 
-    ACT_allocation(onAllocation) {
-        std::cout << "Allocated ";
-        if (count) std::cout << count << " ";
-        std::cout << typeid(T)::name() << " object(s) (" << (count * sizeof(T)) << " bytes)\n";
-    }
-    ACT_allocation(onDeallocation) {
-        std::cout << "Freed "
-        if (count) std::cout << count << " ";
-        std::cout << typeid(T)::name() << " object(s) (" << (count * sizeof(T)) << " bytes)\n";
-    }
-    ACT(Allocator, exit) {
-        std::cout << "allocated " << instance.bytesAllocated << " bytes in " << instance.numAllocations << " allocations\n";
-        std::cout << "freed     " << instance.bytesDeallocated << " bytes in " << instance.numDeallocations << " deallocations\n";
-    }
+    ACT(kParser, enter){ std::cout << "Parsing lines...\n"; }};
+    ACT(kSorter, enter){ std::cout << "Sorting lines...\n"; }};
+    ACT(kSubjectModel, exit) {
+        std::cout << '\n';
+        for (size_t i = 0, n = instance.subjectCount; i < n; ++i) {
+            std::cout << instance.subjects[i] << '\n';
+            // std::cout << instance.subjects[i].name << '\n';
+        }
+        std::cout << instance.subjectCount << " subjects\n";
+    }};
+    ACT_all(enter) {
+        // typedef base_type<decltype(instance)> T;
+        // std::cout << "enter: " << typeid(typename T::Parent).name() << '\n';
+    }};
+    ACT_all(exit) {
+        // typedef typename std::remove_cv<decltype(instance)>::type T;
+        // std::cout << "exit: " << typeid(typename T::Parent).name() << '\n';
+    }};
+    ACT(kAllocator, exit) {
+        std::cout << instance << '\n';
+    }};
 };
+
+struct NoDisplay : public Actor {
+    IMPLEMENT_ACTOR_EVENT(enter)
+    IMPLEMENT_ACTOR_EVENT(exit)
+    ACT_all(exit){
+        // std::cout << "exit: " << typeid(decltype(instance)).name() << '\n';
+    }};
+    ACT(kAllocator, exit) {
+        std::cout << instance << '\n';
+    }};
+};
+
 #undef ACT
-#undef ACT_args
-#undef ACT_allocation
+#undef ACT_all
+#undef IMPLEMENT_ACTOR_EVENT
 
 
 
@@ -480,7 +604,7 @@ void parseLines (const char* filePath) {
     {
         auto allocator = Allocator::create(actor);
         {
-            auto subjects = SubjectsModel::create(actor, allocator);
+            auto subjects = SubjectModel::create(actor, allocator);
             {
                 auto counter = Counter::create(actor, allocator);
                 {
@@ -496,6 +620,7 @@ void parseLines (const char* filePath) {
                         }
                     }
                 }
+                counter.finalize(subjects);
             }
             {
                 auto sorter = Sorter::create(actor, allocator);
@@ -522,14 +647,28 @@ int main (int argc, const char** argv) {
         }
     }
 
+    // Note: found out always allocates 1 << 20 bytes for stack at start of the program...
+
+    #if 1
     parseLines<
         DisplayToCout,
         DefaultAllocator,
         IfstreamReader, 
         FastParser,
         HashedCourseFilterer,
-        HashedSubjectCounter<1024, DefaultHash>::Instance,
-        BubbleSort,
-    >();
+        HashedSubjectCounter<1024, DefaultHash>::Wrapped,
+        BubbleSort
+    >(path);
+    #else
+    parseLines<
+        NoDisplay,
+        DefaultAllocator,
+        IfstreamReader,
+        FastParser,
+        NoCourseFilter,
+        NoSubjectCounter,
+        NoSort
+    >(path);
+    #endif
     return 0;
 }
