@@ -145,26 +145,45 @@ struct AIS {
 // ALLOCATOR
 //
 
-struct BaseAllocator {
-// private:
-    static BaseAllocator    rootAllocator;
-    static BaseAllocator*   currentAllocator;
-    BaseAllocator*          prevAllocator;
+struct IAllocator {
+    static IAllocator* current;
+    IAllocator* prev;
 public:
+    IAllocator () : prev(current) { current = this; }
+    IAllocator (const IAllocator&) = delete;
+    IAllocator& operator= (const IAllocator&) = delete;
+    IAllocator& operator= (IAllocator&& other) { return std::swap(prev, other.prev), *this; }
+    IAllocator (IAllocator&& other) { *this = std::move(other); }
+    ~IAllocator () { current = prev; }
+
+    virtual void* allocate (size_t size) = 0;
+    virtual void deallocate (void* ptr) = 0;
+};
+
+void* operator new (size_t size) throw(std::bad_alloc) {
+    void* ptr = IAllocator::current->allocate(size);
+    if (!ptr) throw std::bad_alloc();
+    return ptr;
+}
+void operator delete (void* ptr) throw() {
+    IAllocator::current->deallocate(ptr);
+}
+
+struct Mallocator : public IAllocator {
+    void* allocate (size_t size) override { return std::malloc(size); }
+    void  deallocate (void* ptr) override { std::free(ptr); }
+
+    friend std::ostream& operator<< (std::ostream& os, const Mallocator& allocator) { return os; }
+};
+Mallocator mallocator;
+IAllocator* IAllocator::current = static_cast<IAllocator*>(&mallocator);
+
+
+struct TracingAllocator : public IAllocator {
     size_t numAllocations = 0, bytesAllocated = 0;
     size_t numDeallocations = 0, bytesDeallocated = 0;
 
-    BaseAllocator () : prevAllocator(currentAllocator) {
-        currentAllocator = this;
-    }
-    BaseAllocator (const BaseAllocator&) = delete;
-    BaseAllocator& operator= (const BaseAllocator&) = delete;
-    BaseAllocator (BaseAllocator&&) = default;
-    BaseAllocator& operator= (BaseAllocator&&) = default;
-    ~BaseAllocator () {
-        currentAllocator = prevAllocator;
-    }
-    friend std::ostream& operator<< (std::ostream& os, const BaseAllocator& allocator) {
+    friend std::ostream& operator<< (std::ostream& os, const TracingAllocator& allocator) {
         return os << "Allocator:\n\t"
             << allocator.bytesAllocated << " bytes allocated in " << allocator.numAllocations << " allocations\n\t"
             << allocator.bytesDeallocated << " bytes freed in " << allocator.numDeallocations << " deallocations\n";
@@ -188,27 +207,16 @@ public:
         std::free(((void*)mem));
     }
 };
-BaseAllocator BaseAllocator::rootAllocator;
-BaseAllocator* BaseAllocator::currentAllocator = &BaseAllocator::rootAllocator;
-
-void* operator new (size_t size) throw(std::bad_alloc) {
-    assert(BaseAllocator::currentAllocator != nullptr);
-    void* ptr = BaseAllocator::currentAllocator->allocate(size);
-    if (!ptr) throw std::bad_alloc();
-    return ptr;
-}
-void operator delete (void* ptr) throw() {
-    BaseAllocator::currentAllocator->deallocate(ptr);
-}
 
 
+template <typename BaseAllocator>
 struct DefaultAllocator {
     template <int Tag, typename Actor>
     struct Instance : 
         public BaseActionable<Tag, Actor>, 
         public BaseAllocator 
     {    
-        typedef DefaultAllocator Parent;
+        typedef TracingAllocator Parent;
 
         Instance (Actor& actor) : 
             BaseActionable<Tag, Actor>(actor), 
@@ -252,7 +260,6 @@ struct DefaultAllocator {
     }
 };
 
-
 //
 // SUBJECT MODEL (POD)
 //
@@ -292,6 +299,27 @@ struct IfstreamReader : public AIS<kReader, IfstreamReader> {
         Instance (const char* path) : file(path) {}
         operator bool () const { return bool(file); }
         const char* line () { return getline(file, line_), line_.c_str(); }
+    };
+};
+
+// Mock version, that:
+// - does no I/O
+// - generates fixed # of lines
+// - returns the same line repeatedly
+//
+// Should be used to test parser speed only, NOT duplicate checking
+//
+template <size_t LINE_COUNT = 70000>
+struct FakeReader : public AIS<kReader, FakeReader<LINE_COUNT>> {
+    struct Instance {
+        size_t lineCount = LINE_COUNT;
+    public:
+        Instance (const char* path) {}
+        operator bool () const { return lineCount != 0; }
+        const char* line () {
+            --lineCount;
+            return "Spring 2009\t2949\tARCHI-130\tAbbott\tTTH 8:00-10:50am ET-122A";
+        }
     };
 };
 
@@ -343,6 +371,63 @@ struct FastParser : public AIS<kParser, FastParser> {
             result.subjectStr = { line, (size_t)(end - line) };
             return true;
         }
+    };
+};
+
+size_t _4atoi (const char* str) {
+    assert(!(str[0] < '0' || str[0] > '9' ||
+        str[1] < '0' || str[1] > '9' ||
+        str[2] < '0' || str[2] > '9' ||
+        str[3] < '0' || str[3] > '9'));
+    
+    uint32_t s = *((uint32_t*)str);
+    return (size_t)(
+        (((s >> 0) & 0xff) - '0') * 1000 +
+        (((s >> 8) & 0xff) - '0') * 100 +
+        (((s >> 16) & 0xff) - '0') * 10 +
+        (((s >> 24) & 0xff) - '0') * 1
+    );
+}
+void unittest_4atoi () {
+    // std::cout << _4atoi("01234") << '\n';
+    // std::cout << _4atoi("8942") << '\n';
+    assert(_4atoi("01234") == 123);
+    assert(_4atoi("8942") == 8942);
+}
+
+struct EvenFasterParser : public AIS<kParser, EvenFasterParser> {
+    struct Instance {
+        bool parse (const char* line, ParseResult& result) {
+            size_t semester = 0;
+            switch (((uint32_t*)line)[0]) {
+                case PACK_STR_4('S','p','r','i'): assert((((uint32_t*)line)[1] & 0x00FFFFFF) == PACK_STR_4('n','g',' ','\0')); line += 7; semester = 0; break;
+                case PACK_STR_4('S','u','m','m'): assert((((uint32_t*)line)[1] & 0x00FFFFFF) == PACK_STR_4('e','r',' ','\0')); line += 7; semester = 1; break;
+                case PACK_STR_4('F','a','l','l'): assert(line[4] == ' ');                                                         line += 5; semester = 2; break;
+                case PACK_STR_4('W','i','n','t'): assert((((uint32_t*)line)[1] & 0x00FFFFFF) == PACK_STR_4('e','r',' ','\0')); line += 7; semester = 3; break;
+                default: return false;
+            }
+            assert(isnumber(line[0]) && line[4] == '\t');
+            result.courseHash = semester | (((_4atoi(line) - 2000) & 31) << 2);
+            line += 5;
+
+            assert(isnumber(line[0]) && line[4] == '\t');
+            size_t code = _4atoi(line);
+            result.courseHash |= (code << 8);
+            line += 5;
+
+            assert(isupper(line[0]));
+            const char* end = strchr(line, '-');
+            assert(end != nullptr && end != line);
+            result.subjectStr = { line, (size_t)(end - line) };
+            return true;
+        }
+    };
+};
+
+
+struct NoParser : public AIS<kParser, NoParser> {
+    struct Instance {
+        bool parse (const char* line, ParseResult& result) { return false; }
     };
 };
 
@@ -630,16 +715,19 @@ void parseLines (const char* filePath) {
     }
 }
 
+
 int main (int argc, const char** argv) {
-    Bitset::unittest();
-    std::cout << "Programmer: Seiji Emery\n"
-              << "Programmer's id: M00202623\n"
-              << "File: " __FILE__ "\n\n";
+    unittest_4atoi();
+    // Bitset::unittest();
+    // std::cout << "Programmer: Seiji Emery\n"
+    //           << "Programmer's id: M00202623\n"
+    //           << "File: " __FILE__ "\n\n";
 
     // Get path from program arguments
-    const char* path = nullptr;
+    // const char* path = "../data/dvc-schedule.txt";
+    const char* path = "/Users/semery/projects/comp220/assignment_08/data/dvc-schedule.txt";
     switch (argc) {
-        case 1: path = "../data/dvc-schedule.txt"; break;
+        case 1: break;
         case 2: path = argv[0]; break;
         default: {
             std::cerr << "usage: " << argv[0] << " [path-to-dvc-schedule.txt]" << std::endl;
@@ -652,9 +740,11 @@ int main (int argc, const char** argv) {
     #if 1
     parseLines<
         DisplayToCout,
-        DefaultAllocator,
-        IfstreamReader, 
-        FastParser,
+        DefaultAllocator<Mallocator>,
+        IfstreamReader,
+        // FakeReader <76667>,
+        EvenFasterParser,
+        // NoCourseFilter,
         HashedCourseFilterer,
         HashedSubjectCounter<1024, DefaultHash>::Wrapped,
         BubbleSort
@@ -662,8 +752,8 @@ int main (int argc, const char** argv) {
     #else
     parseLines<
         NoDisplay,
-        DefaultAllocator,
-        IfstreamReader,
+        DefaultAllocator<Mallocator>,
+        FakeReader<76667>,
         FastParser,
         NoCourseFilter,
         NoSubjectCounter,
