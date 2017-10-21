@@ -17,6 +17,8 @@ endif()
 include_directories(src ../assignment_03/src)
 add_executable(dvc4 
     src/DvcSchedule4.cpp)
+add_executable(dvc5
+    src/DvcSchedule5.cpp)
 
 add_executable(np
     src/NaiveParser.cpp)

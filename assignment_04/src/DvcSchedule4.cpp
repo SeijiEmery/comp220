@@ -102,7 +102,7 @@ int main (int argc, const char** argv) {
     // Get path from program arguments
     const char* path = nullptr;
     switch (argc) {
-        case 1: path = "dvc-schedule.txt"; break;
+        case 1: path = "../data/dvc-schedule.txt"; break;
         case 2: path = argv[0]; break;
         default: {
             std::cerr << "usage: " << argv[0] << " [path-to-dvc-schedule.txt]" << std::endl;
