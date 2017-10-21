@@ -2,6 +2,9 @@ cmake_minimum_required (VERSION 2.6)
 project (assignment_03)
 # enable_testing()
 
+set(CMAKE_CXX_FLAGS_DEBUG "-g")
+set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O3")
+
 # Require c++11
 include(CheckCXXCompilerFlag)
 CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
@@ -27,7 +30,6 @@ add_executable(np
 add_custom_target(rnp
     COMMAND ./np
     DEPENDS np)
-
 
 add_custom_target(run
     COMMAND ./dvc4 data/dvc-schedule.txt
