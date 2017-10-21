@@ -720,8 +720,7 @@ int main (int argc, const char** argv) {
     //           << "File: " __FILE__ "\n\n";
 
     // Get path from program arguments
-    // const char* path = "../data/dvc-schedule.txt";
-    const char* path = "/Users/semery/projects/comp220/assignment_08/data/dvc-schedule.txt";
+    const char* path = "../../assignment_04/data/dvc-schedule.txt";
     switch (argc) {
         case 1: break;
         case 2: path = argv[0]; break;
