@@ -8,8 +8,6 @@ enum {
     SPRING = 0, SUMMER = 1, FALL = 2, WINTER = 3
 };
 
-
-
 const unsigned YEAR_ORIGIN = 2000;
 
 typedef struct {
@@ -108,6 +106,68 @@ SectionList* parseLineAndInsertSection (SectionList* node, char* line) {
     return insertSection(node, semester, year, ++sectionid, subject, classid);
 }
 
+typedef struct darray darray;
+struct darray {
+    void*   data;        // owning pointer
+    void*   back;        // non-owning pointer
+    size_t  size;        // array size (# elements)
+    size_t  field_size;  // sizeof(element)
+};
+void darray_init (darray* array, size_t count, size_t field_size) {
+    assert(array);
+    assert(!array->data);
+    array->back = array->data = malloc(count * field_size);
+    array->size = count;
+    array->field_size = field_size;
+}
+void darray_free (darray* array) {
+    assert(array);
+    if (array->data) {
+        free(array->data);
+    }
+    array->data = array->back = 0;
+    array->size = array->field_size = 0;
+}
+void darray_resize (darray* array, size_t size) {
+    assert(array);
+    void* data = malloc(size * array->field_size);
+    if (array->data) {
+        if (size > array->size) {
+            memcpy(data, array->data, array->size * array->field_size);
+            memset(&data[array->size * array->field_size], 0, (size - array->size) * array->field_size);
+        } else {
+            memcpy(data, array->data, size * array->field_size);
+        }
+        array->back = data + (array->back - array->data);
+    } else {
+        memset(data, 0, size * array->field_size);
+        array->back = data;
+    }
+    array->size = size;
+    array->data = data;
+}
+void* darray_getptr (darray* array, size_t index) {
+    assert(array);
+    if (index >= array->size) {
+        darray_resize(array, toNextPow2(index+1));
+    }
+    assert(index < array->size);
+    return array->data + index * array->field_size;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 int main () {
@@ -140,7 +200,7 @@ int main () {
         while (*s && *s != '\n') ++s;
         ++nlines;
     }
-    printSections(stdout, sections);
+    // printSections(stdout, sections);
     printf("%ld lines\n", nlines);
 
     freeSectionList(sections);
