@@ -1,6 +1,10 @@
 cmake_minimum_required (VERSION 2.6)
 project (assignment_08)
 
+# set(CMAKE_CXX_FLAGS "-Wall -Wextra")
+set(CMAKE_CXX_FLAGS_DEBUG "-g")
+set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O3")
+
 # Require c++11
 include(CheckCXXCompilerFlag)
 CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
@@ -24,6 +28,8 @@ endif()
 # else()
 #         message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++17 support. Please use a different C++ compiler.")
 # endif()
+
+
 
 # import DynamicArray.h from assignment_03
 include_directories(src ../assignment_03/src)

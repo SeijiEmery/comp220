@@ -622,11 +622,7 @@ struct DisplayToCout : public Actor {
 };
 
 struct NoDisplay : public Actor {
-    IMPLEMENT_ACTOR_EVENT(enter)
     IMPLEMENT_ACTOR_EVENT(exit)
-    ACT_all(exit){
-        // std::cout << "exit: " << typeid(decltype(instance)).name() << '\n';
-    }};
     ACT(kAllocator, exit) {
         std::cout << instance << '\n';
     }};
@@ -743,8 +739,8 @@ int main (int argc, const char** argv) {
         DefaultAllocator<Mallocator>,
         IfstreamReader,
         // FakeReader <76667>,
+        // FakeReader <1000000000>,
         EvenFasterParser,
-        // NoCourseFilter,
         HashedCourseFilterer,
         HashedSubjectCounter<1024, DefaultHash>::Wrapped,
         BubbleSort
