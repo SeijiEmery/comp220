@@ -3,6 +3,7 @@
 #include <fstream>
 #include <string>
 #include <cstdlib>
+#include <cstdio>
 #include <type_traits>
 
 
@@ -290,7 +291,7 @@ struct SubjectModel : public AIS<kSubjectModel, SubjectModel> {
 //
 // FILE READING ALGORITHMS
 //
-
+    
 struct IfstreamReader : public AIS<kReader, IfstreamReader> {
     struct Instance {
         std::ifstream file;
@@ -299,6 +300,18 @@ struct IfstreamReader : public AIS<kReader, IfstreamReader> {
         Instance (const char* path) : file(path) {}
         operator bool () const { return bool(file); }
         const char* line () { return getline(file, line_), line_.c_str(); }
+    };
+};
+
+struct CFileReader : public AIS<kReader, CFileReader> {
+    struct Instance {
+        FILE* file;
+        char buf[512];
+    public:
+        Instance (const char* path) : file(fopen(path, "r")) {}
+        ~Instance () { fclose(file); }
+        operator bool () { return fgets(&buf[0], sizeof(buf) / sizeof(buf[0]), file) != nullptr; }
+        const char* line () { return &buf[0]; }
     };
 };
 
@@ -733,8 +746,9 @@ int main (int argc, const char** argv) {
     #if 1
     parseLines<
         DisplayToCout,
-        DefaultAllocator<Mallocator>,
-        IfstreamReader,
+        DefaultAllocator<TracingAllocator>,
+        CFileReader,
+        //IfstreamReader,
         // FakeReader <76667>,
         // FakeReader <1000000000>,
         EvenFasterParser,
