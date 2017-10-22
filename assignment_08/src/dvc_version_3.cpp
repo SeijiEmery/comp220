@@ -357,16 +357,66 @@ struct CFilePreBufferedReader : public AIS<kReader, CFilePreBufferedReader> {
 //
 // Should be used to test parser speed only, NOT duplicate checking
 //
-template <size_t LINE_COUNT = 70000>
-struct FakeReader : public AIS<kReader, FakeReader<LINE_COUNT>> {
+struct FakeReader : public AIS<kReader, FakeReader> {
     struct Instance {
-        size_t lineCount = LINE_COUNT;
     public:
         Instance (const char* path) {}
-        operator bool () { return lineCount --> 0; }
+        operator bool () { return true; }
         const char* line () {
             return "Spring 2009\t2949\tARCHI-130\tAbbott\tTTH 8:00-10:50am ET-122A";
         }
+    };
+};
+
+struct FakeRandomReader : public AIS<kReader, FakeRandomReader> {
+    struct Instance {
+        char buffer[512];
+        const char* semesters[8] {
+            "Spring", "Spring", "Spring",
+            "Summer", "Summer",
+            "Fall", "Fall", "Fall" 
+        };
+        const char* subjects[128] {
+            "ADJUS", "ADS", "AET", "ANTHR", "ARABC", "ARCHI", "ART", "ARTDM", "ARTHS", 
+            "ASTRO", "BCA", "BIOSC", "BUS", "BUSAC", "BUSGR", "BUSIM", "BUSMG", "BUSMK", 
+            "CARDV", "CARER", "CHEM", "CHIN", "CIS", "CNT", "COLQY", "COMM", "COMSC", 
+            "COMTC", "CONST", "COOP", "COUNS", "CULN", "DANCE", "DENHY", "DENTE", "DENTL", 
+            "DRAMA", "ECE", "ECON", "EDUC", "ELECT", "ELTRN", "ENGIN", "ENGL", "ENGTC", 
+            "ENSYS", "ENVSC", "ESL", "FAMLI", "FARSI", "FIELD", "FILM", "FRNCH", "FTVE", 
+            "GEOG", "GEOL", "GRMAN", "HIST", "HORT", "HRMCU", "HRMGT", "HSCI", "HUMAN", 
+            "HVACR", "IDSGN", "INTD", "ITAL", "JAPAN", "JRNAL", "KINES", "KNACT", "KNCMB", 
+            "KNDAN", "KNICA", "L", "LATIN", "LRNSK", "LS", "LT", "MATEC", "MATH", "MLT", 
+            "MULTM", "MUSIC", "MUSLT", "MUSPF", "MUSX", "NUTRI", "OCEAN", "PE", "PEADP", 
+            "PECMB", "PEDAN", "PEIC", "PERSN", "PETHE", "PHILO", "PHYS", "PHYSC", "POLSC", 
+            "PORT", "PSYCH", "RE", "RUSS", "SIGN", "SOCIO", "SOCSC", "SPAN", "SPCH", "SPEDU", 
+            "SPTUT", "TAGLG", "WRKX", "ENGL", "ENGL", "ENGL", "MATH", "MATH", "MATH", "SPCH",
+            "BIOL", "CHEM", "SOCIO", "PHILO", "MUSIC", "MULTM", "HUMAN", "PHYS" 
+        };
+    public:
+        Instance (const char* filePath) { srand(time(nullptr)); }
+        operator bool () { return true; }
+        const char *line () {
+            snprintf(&buffer[0], sizeof(buffer) / sizeof(buffer[0]),
+                "%s %d\t%04d\t%s-%d\t",
+                semesters[rand() % (sizeof(semesters) / sizeof(semesters[0]))],
+                2000 + (rand() % 16),
+                rand() % 10000,
+                subjects[rand() % (sizeof(subjects) / sizeof(subjects[0]))],
+                rand() % 128
+            );
+            //std::cout << "Generated '" << &buffer[0] << "'\n";
+            return &buffer[0];
+        }
+    };
+};
+
+template <size_t COUNT, typename Reader>
+struct Take : public AIS<kReader, Take<COUNT, Reader>> {
+    struct Instance : public Reader::Instance {
+        int count = (int)COUNT;
+    public:
+        Instance (const char* path) : Reader::Instance(path) {}
+        operator bool () { return bool(static_cast<typename Reader::Instance&>(*this)) && count --> 0; }
     };
 };
 
@@ -756,6 +806,21 @@ void parseLines (const char* filePath) {
     }
 }
 
+template <typename Actor, typename Allocator, typename Reader, typename Writer>
+void writeToFile (const char* readPath, const char* writePath) {
+    Actor actor;
+    {
+        auto allocator = Allocator::create(actor);
+        {
+            auto reader = Reader::create(actor, allocator, readPath);
+            auto writer = Writer::create(actor, allocator, writePath);
+            while (reader) {
+                writer.writeLine(reader.line());
+            }
+        }
+    }
+}
+
 int main (int argc, const char** argv) {
     unittest_4atoi();
     // Bitset::unittest();
@@ -781,9 +846,14 @@ int main (int argc, const char** argv) {
         DisplayToCout,
         DefaultAllocator<TracingAllocator>,
         //CFilePreBufferedReader,
+        //Take<100, IfstreamReader>,
+        Take<100000, FakeRandomReader>,
+
+        //Take<100, FakeRandomReader>,
+
         //IfstreamReader,
         //FakeRandomReader<76667>,
-        FakeRandomReader<1000000>,
+        //FakeRandomReader<1000000>,
         //FakeReader<1000000>,
         // FakeReader <76667>,
         // FakeReader <1000000000>,
