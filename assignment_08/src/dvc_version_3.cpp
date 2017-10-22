@@ -315,6 +315,43 @@ struct CFileReader : public AIS<kReader, CFileReader> {
     };
 };
 
+struct CFilePreBufferedReader : public AIS<kReader, CFilePreBufferedReader> {
+    struct Instance {
+        FILE* file;
+        size_t size;
+        char*  data;
+        char* nextLine;
+        char* nextNextLine;
+    public:
+        Instance (const char* path) : 
+            file(fopen(path, "rb")),
+            size((fseek(file, 0, SEEK_END), ftell(file))),
+            data(new char[size+128])
+        {
+            //std::cout << "Opening file '" << path << "', size " << size << '\n';
+            rewind(file);
+            memset(&data[size], 0, 128);
+            fread(&data[0], 1, size, file);
+            nextLine = &data[0];
+        }
+        ~Instance () {
+            fclose(file);
+            delete[] data;
+        }
+        operator bool () { return (nextNextLine = strchr(nextLine + 1, '\n')) != nullptr; }
+        const char* line () {
+            if (nextNextLine) nextNextLine[0] = '\0';
+
+            const char* line = nextLine;
+            nextLine = &nextNextLine[1];
+            return line;
+        }
+    };
+};
+
+
+
+
 // Mock version, that:
 // - does no I/O
 // - generates fixed # of lines
@@ -747,8 +784,8 @@ int main (int argc, const char** argv) {
     parseLines<
         DisplayToCout,
         DefaultAllocator<TracingAllocator>,
-        CFileReader,
-        //IfstreamReader,
+        //CFilePreBufferedReader,
+        IfstreamReader,
         // FakeReader <76667>,
         // FakeReader <1000000000>,
         EvenFasterParser,
