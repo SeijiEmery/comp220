@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <type_traits>
+#include <ctime>
 
 
 //
@@ -186,8 +187,8 @@ struct TracingAllocator : public IAllocator {
 
     friend std::ostream& operator<< (std::ostream& os, const TracingAllocator& allocator) {
         return os << "Allocator:\n\t"
-            << allocator.bytesAllocated << " bytes allocated in " << allocator.numAllocations << " allocations\n\t"
-            << allocator.bytesDeallocated << " bytes freed in " << allocator.numDeallocations << " deallocations\n";
+            << ((double)allocator.bytesAllocated * 1e-6) << " MB allocated in " << allocator.numAllocations << " allocations\n\t"
+            << ((double)allocator.bytesDeallocated * 1e-6) << " MB freed in " << allocator.numDeallocations << " deallocations\n";
     }
 
     void* allocate (size_t size) {
@@ -349,9 +350,6 @@ struct CFilePreBufferedReader : public AIS<kReader, CFilePreBufferedReader> {
     };
 };
 
-
-
-
 // Mock version, that:
 // - does no I/O
 // - generates fixed # of lines
@@ -365,9 +363,8 @@ struct FakeReader : public AIS<kReader, FakeReader<LINE_COUNT>> {
         size_t lineCount = LINE_COUNT;
     public:
         Instance (const char* path) {}
-        operator bool () const { return lineCount != 0; }
+        operator bool () { return lineCount --> 0; }
         const char* line () {
-            --lineCount;
             return "Spring 2009\t2949\tARCHI-130\tAbbott\tTTH 8:00-10:50am ET-122A";
         }
     };
@@ -759,7 +756,6 @@ void parseLines (const char* filePath) {
     }
 }
 
-
 int main (int argc, const char** argv) {
     unittest_4atoi();
     // Bitset::unittest();
@@ -785,7 +781,10 @@ int main (int argc, const char** argv) {
         DisplayToCout,
         DefaultAllocator<TracingAllocator>,
         //CFilePreBufferedReader,
-        IfstreamReader,
+        //IfstreamReader,
+        //FakeRandomReader<76667>,
+        FakeRandomReader<1000000>,
+        //FakeReader<1000000>,
         // FakeReader <76667>,
         // FakeReader <1000000000>,
         EvenFasterParser,
