@@ -1,4 +1,13 @@
-
+// Programmer: Seiji Emery
+// Programmer ID: M00202623
+//
+// dvc_version_3.cpp
+//
+// Implements a very fast, and highly modular / extensible DVC parser. Also implements a bunch of 
+// tests / benchmarks for default configurations of said parser(s) to meet assignment 8's part 1 / 2 specs.
+//
+// remote source: https://github.com/SeijiEmery/comp220/blob/master/assignment_08/src/dvc_version_3.cpp
+//
 #include <iostream>
 #include <iomanip>
 #include <fstream>
@@ -493,6 +502,7 @@ struct Repeat : public AIS<kReader, Repeat<Reader>> {
 
 struct ParseResult {
     hash_t              courseHash = 0;
+    const char*         line;
     Slice<const char*>  subjectStr;
 
     friend std::ostream& operator<< (std::ostream& os, ParseResult& result) {
@@ -508,9 +518,13 @@ struct ParseResult {
     (((uint32_t)d << 24) | ((uint32_t)c << 16) | ((uint32_t)b << 8) | ((uint32_t)a))
 
 
+// Heavily optimized parser implementation for the dvc-schedule file format.
+// Will crash (early!) if a line is wrong and is running in debug mode. If built in release,
+// will run much faster but behavior is... somewhat undefined.
 struct FastParser : public AIS<kParser, FastParser> {
     struct Instance {
         bool parse (const char* line, ParseResult& result) {
+            result.line = line;
             size_t semester = 0;
             switch (((uint32_t*)line)[0]) {
                 case PACK_STR_4('S','p','r','i'): assert((((uint32_t*)line)[1] & 0x00FFFFFF) == PACK_STR_4('n','g',' ','\0')); line += 7; semester = 0; break;
@@ -537,6 +551,8 @@ struct FastParser : public AIS<kParser, FastParser> {
     };
 };
 
+// Parses a string that is assumed / required to be a 4-digit integer literal.
+// Faster than atoi - this saved me about 1ms per run (out of ~6ms on 70k files), no joke.
 size_t _4atoi (const char* str) {
     assert(!(str[0] < '0' || str[0] > '9' ||
         str[1] < '0' || str[1] > '9' ||
@@ -558,9 +574,14 @@ void unittest_4atoi () {
     assert(_4atoi("8942") == 8942);
 }
 
+// Same as FastParser, but with atoi swapped out for the optimized version above 
+// - turns out we're only ever parsing integers as 4 digits. Assuming strchr is optimized,
+// there really isn't much of anything we can do to boost performance at this point (nor do 
+// we need to - without I/O, this can parse 100k lines of text in ~5ms)
 struct EvenFasterParser : public AIS<kParser, EvenFasterParser> {
     struct Instance {
         bool parse (const char* line, ParseResult& result) {
+            result.line = line;
             size_t semester = 0;
             switch (((uint32_t*)line)[0]) {
                 case PACK_STR_4('S','p','r','i'): assert((((uint32_t*)line)[1] & 0x00FFFFFF) == PACK_STR_4('n','g',' ','\0')); line += 7; semester = 0; break;
@@ -608,8 +629,6 @@ struct HashedCourseFilterer : public AIS<kFilterer, HashedCourseFilterer> {
         size_t uniqueCount = 0;
     public:
         Instance () : hashset(0) {}
-
-
         template <typename SubjectModel>
         bool filter (const ParseResult& result, SubjectModel& model) {
             if (hashset.get(result.courseHash)) {
@@ -620,6 +639,26 @@ struct HashedCourseFilterer : public AIS<kFilterer, HashedCourseFilterer> {
                 ++uniqueCount;
                 return true;
             }
+        }
+    };
+};
+
+// Purely for awfulness sake...
+struct LinearFilter : public AIS<kFilterer, LinearFilter> {
+    struct Instance {
+        DynamicArray<std::string> keys;
+        size_t back = 0;
+    public:
+        Instance () : keys(0) {}
+        template <typename SubjectModel>
+        bool filter (const ParseResult& result, SubjectModel& model) {
+            for (auto i = back; i --> 0; ) {
+                if (keys[i] == result.line) {
+                    return false;
+                }
+            }
+            keys[back++] = result.line;
+            return true;
         }
     };
 };
@@ -899,28 +938,60 @@ double benchmark (size_t iterations, F fcn, Args... args) {
     return static_cast<double>(endTime - startTime) / CLOCKS_PER_SEC * 1e3 / iterations;
 }
 
-template <typename Parser, size_t lines>
+template <typename Reader, typename Parser, typename Filterer, typename Counter, typename Sorter, size_t lines>
 void runHeadlessParser (const char* filePath) {
     parseLines<
         NoDisplay,                          // action
         DefaultAllocator<Mallocator>,       // allocator
-        Take<lines, IfstreamReader>,        // file loader + file actions
+        Take<lines, Reader>,        // file loader + file actions
         Parser,                     // parsing algorithm
-        NoCourseFilter,             // filtering algorithm
-        NoSubjectCounter,           // counting algorithm
-        NoSort                      // sorting algorithm
+        Filterer,                   // filtering algorithm
+        Counter,                    // counting algorithm
+        Sorter                      // sorting algorithm
     >(filePath);
 }
-template <typename Parser, size_t lines, size_t limit>
-void benchParser (const char* filePath, size_t iterations, double expected = 0) {
-    auto runtime = benchmark(iterations, &runHeadlessParser<Parser,lines>, filePath);
+template <typename Reader, typename Parser, typename Filterer, typename Counter, typename Sorter, size_t lines, size_t limit>
+void benchParserLinear (const char* filePath, size_t iterations, double expected = 0) {
+    auto runtime = benchmark(iterations, &runHeadlessParser<Reader, Parser, Filterer, Counter, Sorter, lines>, filePath);
     std::cout << "parsed lines: " << std::setw(6) << lines << " time: "
         << std::setw(8) << runtime << " ms / run";
     if (expected == 0) std::cout << "  expected O(n)\n";
     else               std::cout << "  expected " << expected << '\n';
     if (lines * 2 <= limit) {
-        benchParser<Parser, lines * 2, limit>(filePath, iterations, runtime * 2);
+        benchParserLinear<Reader, Parser, Filterer, Counter, Sorter, lines * 2, limit>(filePath, iterations, runtime * 2);
     }
+}
+
+template <typename Reader, typename Parser, typename Filterer, typename Counter, typename Sorter, size_t lines, size_t limit>
+void benchParserQuadratic (const char* filePath, size_t iterations, double expected = 0) {
+    auto runtime = benchmark(iterations, &runHeadlessParser<Reader, Parser, Filterer, Counter, Sorter, lines>, filePath);
+    std::cout << "parsed lines: " << std::setw(6) << lines << " time: "
+        << std::setw(8) << runtime << " ms / run";
+    if (expected == 0) std::cout << "  expected O(n^2)\n";
+    else               std::cout << "  expected " << expected << '\n';
+    if (lines * 2 <= limit) {
+        benchParserQuadratic<Reader, Parser, Filterer, Counter, Sorter, lines * 2, limit>(
+            filePath, iterations, runtime * 2
+        );
+    }
+}
+
+
+template <typename Reader, typename Filterer, typename Counter, typename Sorter>
+void runParserBenchSuite (const char* filePath, size_t iterations) {
+    std::cout << "running benchmarks with " << iterations << " iterations\n";
+
+    std::cout << "\nNoParser:\n";
+    benchParserLinear<Reader, NoParser, Filterer, Counter, Sorter, 8000,64000>(filePath, iterations);
+
+    std::cout << "\nFastParser:\n";
+    benchParserLinear<Reader, FastParser, Filterer, Counter, Sorter, 8000,64000>(filePath, iterations);
+
+    std::cout << "\nEvenFasterParser:\n";
+    benchParserLinear<Reader, EvenFasterParser, Filterer, Counter, Sorter, 8000,64000>(filePath, iterations);
+
+    std::cout << "\nWith quadratic filtering:\n";
+    benchParserQuadratic<Reader, FastParser, LinearFilter, Counter, Sorter, 200, 3200>(filePath, (iterations + 1) / 4);
 }
 
 int main (int argc, const char** argv) {
@@ -940,17 +1011,20 @@ int main (int argc, const char** argv) {
             exit(-1);
         }
     }
-    size_t iterations = 10;
-    std::cout << "benchmarking with " << iterations << " iterations\n";
 
-    std::cout << "\nNoParser:\n";
-    benchParser<NoParser,8000,64000>(path, iterations);
+    size_t iterations = 10; // change this to increase benchmark precision (averages) at cost of runtime performance.
 
-    std::cout << "\nFastParser:\n";
-    benchParser<FastParser,8000,64000>(path, iterations);
+    std::cout << "\nPart 1: testing dvc parsing algorithms, parser + file I/O only\n";
+    runParserBenchSuite<IfstreamReader, NoCourseFilter, NoSubjectCounter, NoSort>(path, iterations);
 
-    std::cout << "\nEvenFasterParser:\n";
-    benchParser<EvenFasterParser,8000,64000>(path, iterations);
+    std::cout << "\nPart 1: testing dvc parsing algorithms, parser + fake file I/O only\n";
+    runParserBenchSuite<FakeReader, NoCourseFilter, HashedSubjectCounter<1024, DefaultHash>, NoSort>(path, iterations);
+
+    std::cout << "\nPart 2: testing dvc parsing + filtering algorithms, no counting / sorting\n";
+    runParserBenchSuite<IfstreamReader, HashedCourseFilterer, NoSubjectCounter, NoSort>(path, iterations);
+
+    std::cout << "\nPart 2: testing everything\n";
+    runParserBenchSuite<IfstreamReader, HashedCourseFilterer, HashedSubjectCounter<1024, DefaultHash>, BubbleSort>(path, iterations);    
 
     std::cout << "\nWould you like to view sample run output y / n? ";
     std::string result; std::cin >> result;
