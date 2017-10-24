@@ -1,5 +1,6 @@
 
 #include <iostream>
+#include <iomanip>
 #include <fstream>
 #include <string>
 #include <cstdlib>
@@ -299,6 +300,7 @@ struct IfstreamReader : public AIS<kReader, IfstreamReader> {
         std::string   line_;
     public:
         Instance (const char* path) : file(path) {}
+        void reset () {}
         operator bool () const { return bool(file); }
         const char* line () { return getline(file, line_), line_.c_str(); }
     };
@@ -311,6 +313,7 @@ struct CFileReader : public AIS<kReader, CFileReader> {
     public:
         Instance (const char* path) : file(fopen(path, "r")) {}
         ~Instance () { fclose(file); }
+        void reset () {}
         operator bool () { return fgets(&buf[0], sizeof(buf) / sizeof(buf[0]), file) != nullptr; }
         const char* line () { return &buf[0]; }
     };
@@ -333,11 +336,15 @@ struct CFilePreBufferedReader : public AIS<kReader, CFilePreBufferedReader> {
             rewind(file);
             memset(&data[size], 0, 128);
             fread(&data[0], 1, size, file);
-            nextLine = &data[0];
+            reset();
         }
         ~Instance () {
             fclose(file);
             delete[] data;
+        }
+        void reset () { 
+            //std::cout << "resetting...\n";
+            nextLine = &data[0]; 
         }
         operator bool () { return (nextNextLine = strchr(nextLine + 1, '\n')) != nullptr; }
         const char* line () {
@@ -361,6 +368,7 @@ struct FakeReader : public AIS<kReader, FakeReader> {
     struct Instance {
     public:
         Instance (const char* path) {}
+        void reset () {}
         operator bool () { return true; }
         const char* line () {
             return "Spring 2009\t2949\tARCHI-130\tAbbott\tTTH 8:00-10:50am ET-122A";
@@ -370,6 +378,7 @@ struct FakeReader : public AIS<kReader, FakeReader> {
 
 struct FakeRandomReader : public AIS<kReader, FakeRandomReader> {
     struct Instance {
+        time_t seed;
         char buffer[512];
         const char* semesters[8] {
             "Spring", "Spring", "Spring",
@@ -393,7 +402,8 @@ struct FakeRandomReader : public AIS<kReader, FakeRandomReader> {
             "BIOL", "CHEM", "SOCIO", "PHILO", "MUSIC", "MULTM", "HUMAN", "PHYS" 
         };
     public:
-        Instance (const char* filePath) { srand(time(nullptr)); }
+        Instance (const char* filePath) : seed(time(nullptr)) { reset(); }
+        void reset    () { srand(seed); }
         operator bool () { return true; }
         const char *line () {
             snprintf(&buffer[0], sizeof(buffer) / sizeof(buffer[0]),
@@ -410,15 +420,71 @@ struct FakeRandomReader : public AIS<kReader, FakeRandomReader> {
     };
 };
 
+//#define parent (static_cast<typename Reader::Instance*>(this))
+
 template <size_t COUNT, typename Reader>
 struct Take : public AIS<kReader, Take<COUNT, Reader>> {
-    struct Instance : public Reader::Instance {
+    struct Instance /*: public Reader::Instance*/ {
+        typename Reader::Instance next;
         int count = (int)COUNT;
     public:
-        Instance (const char* path) : Reader::Instance(path) {}
-        operator bool () { return bool(static_cast<typename Reader::Instance&>(*this)) && count --> 0; }
+        Instance (const char* path) : next(path) {}
+        void reset () { count = (int)COUNT; next.reset(); }
+        operator bool () { return bool(next) && count --> 0; }
+        const char* line () { return next.line(); }
+
+        //Instance (const char* path) : Reader::Instance(path) {}
+        //void reset () { count = (int)COUNT; parent->reset(); }
+        //operator bool () { return bool(*parent) && count --> 0; }
     };
 };
+
+
+template <size_t COUNT, typename Reader>
+struct Skip : public AIS<kReader, Skip<COUNT, Reader>> {
+    struct Instance /*: public Reader::Instance*/ {
+        typename Reader::Instance next;
+    public:
+        Instance (const char* path) : next(path) { skipN(); }
+        void reset () { next.reset(); skipN(); }
+        operator bool () { return bool(next); }
+        const char* line () { return next.line(); }
+        //Instance (const char* path) : Reader::Instance(path) { skipN(); }
+        //void reset () { parent->reset(); skipN(); }
+    private:
+        void skipN () {
+            for (auto i = COUNT; i --> 0 && bool(*this); ) { this->line(); }
+        }
+    };
+};
+
+template <typename Reader>
+struct Repeat : public AIS<kReader, Repeat<Reader>> {
+    struct Instance /*: public Reader::Instance */{
+        typename Reader::Instance next;
+    public:
+        Instance (const char* path) : next(path) {}
+        void reset () { next.reset(); }
+        operator bool () {
+            if (!bool(next)) { next.reset(); }
+            return true;
+        }
+        const char* line () { return next.line(); }
+
+        //Instance (const char* path) : Reader::Instance(path) {}
+        //operator bool () {
+        //    if (!bool(*parent)) { this->reset(); }
+        //    auto result = bool(*parent);
+        //    assert(result);
+        //    return result;
+        //}
+    };
+};
+
+#undef parent
+
+
+
 
 
 //
@@ -719,7 +785,7 @@ struct DisplayToCout : public Actor {
 struct NoDisplay : public Actor {
     IMPLEMENT_ACTOR_EVENT(exit)
     ACT(kAllocator, exit) {
-        std::cout << instance << '\n';
+        //std::cout << instance << '\n';
     }};
 };
 
@@ -790,6 +856,7 @@ void parseLines (const char* filePath) {
                         auto reader = Reader::create(actor, allocator, filePath);
                         ParseResult result;
                         while (reader) {
+                            //std::cout << reader.line() << '\n';
                             if (parser.parse(reader.line(), result) && filterer.filter(result, subjects)) {
                                 counter.insert(subjects, result);
                             }
@@ -821,12 +888,47 @@ void writeToFile (const char* readPath, const char* writePath) {
     }
 }
 
+
+template <typename F, typename... Args>
+double benchmark (size_t iterations, F fcn, Args... args) {
+    clock_t startTime = clock();
+    for (size_t i = iterations; i --> 0; ) {
+        fcn(args...);
+    }
+    clock_t endTime = clock();
+    return static_cast<double>(endTime - startTime) / CLOCKS_PER_SEC * 1e3 / iterations;
+}
+
+template <typename Parser, size_t lines>
+void runHeadlessParser (const char* filePath) {
+    parseLines<
+        NoDisplay,                          // action
+        DefaultAllocator<Mallocator>,       // allocator
+        Take<lines, IfstreamReader>,        // file loader + file actions
+        Parser,                     // parsing algorithm
+        NoCourseFilter,             // filtering algorithm
+        NoSubjectCounter,           // counting algorithm
+        NoSort                      // sorting algorithm
+    >(filePath);
+}
+template <typename Parser, size_t lines, size_t limit>
+void benchParser (const char* filePath, size_t iterations, double expected = 0) {
+    auto runtime = benchmark(iterations, &runHeadlessParser<Parser,lines>, filePath);
+    std::cout << "parsed lines: " << std::setw(6) << lines << " time: "
+        << std::setw(8) << runtime << " ms / run";
+    if (expected == 0) std::cout << "  expected O(n)\n";
+    else               std::cout << "  expected " << expected << '\n';
+    if (lines * 2 <= limit) {
+        benchParser<Parser, lines * 2, limit>(filePath, iterations, runtime * 2);
+    }
+}
+
 int main (int argc, const char** argv) {
     unittest_4atoi();
-    // Bitset::unittest();
-    // std::cout << "Programmer: Seiji Emery\n"
-    //           << "Programmer's id: M00202623\n"
-    //           << "File: " __FILE__ "\n\n";
+    Bitset::unittest();
+    std::cout << "Programmer: Seiji Emery\n"
+              << "Programmer's id: M00202623\n"
+              << "File: " __FILE__ "\n\n";
 
     // Get path from program arguments
     const char* path = "dvc-schedule.txt";
@@ -838,40 +940,34 @@ int main (int argc, const char** argv) {
             exit(-1);
         }
     }
+    size_t iterations = 10;
+    std::cout << "benchmarking with " << iterations << " iterations\n";
 
-    // Note: found out always allocates 1 << 20 bytes for stack at start of the program...
+    std::cout << "\nNoParser:\n";
+    benchParser<NoParser,8000,64000>(path, iterations);
 
-    #if 1
-    parseLines<
-        DisplayToCout,
-        DefaultAllocator<TracingAllocator>,
-        //CFilePreBufferedReader,
-        //Take<100, IfstreamReader>,
-        Take<100000, FakeRandomReader>,
+    std::cout << "\nFastParser:\n";
+    benchParser<FastParser,8000,64000>(path, iterations);
 
-        //Take<100, FakeRandomReader>,
+    std::cout << "\nEvenFasterParser:\n";
+    benchParser<EvenFasterParser,8000,64000>(path, iterations);
 
-        //IfstreamReader,
-        //FakeRandomReader<76667>,
-        //FakeRandomReader<1000000>,
-        //FakeReader<1000000>,
-        // FakeReader <76667>,
-        // FakeReader <1000000000>,
-        EvenFasterParser,
-        HashedCourseFilterer,
-        HashedSubjectCounter<1024, DefaultHash>,
-        BubbleSort
-    >(path);
-    #else
-    parseLines<
-        NoDisplay,
-        DefaultAllocator<Mallocator>,
-        FakeReader<76667>,
-        FastParser,
-        NoCourseFilter,
-        NoSubjectCounter,
-        NoSort
-    >(path);
-    #endif
+    std::cout << "\nWould you like to view sample run output y / n? ";
+    std::string result; std::cin >> result;
+    if (result.size() && (result[0] == 'y' || result[0] == 'Y')) {
+        std::cout << "\nFastParser (64k lines):\n";
+        auto runtime = benchmark(1, [&](){
+            parseLines<
+                DisplayToCout, 
+                DefaultAllocator<TracingAllocator>,
+                Take<64 * 1000, IfstreamReader>,
+                FastParser,
+                HashedCourseFilterer,
+                HashedSubjectCounter<1024, DefaultHash>,
+                BubbleSort
+            >(path);
+        });
+        std::cout << "Ran (full, 64k lines) in " << runtime << " ms\n";
+    }
     return 0;
 }
