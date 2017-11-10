@@ -21,9 +21,13 @@ endif()
 include_directories(src ../assignment_03/src)
 
 # executables: main program + testdriver
-add_executable(test     src/AssociativeArray.TestDriver.cpp)
-add_executable(dvc      src/dvc.cpp)
+add_executable(testdriver       src/AssociativeArray.TestDriver.cpp)
+add_executable(dvc              src/dvc.cpp)
 
 add_custom_target(run
     COMMAND ./dvc
     DEPENDS dvc)
+
+add_custom_target(test
+    COMMAND ./testdriver
+    DEPENDS testdriver)

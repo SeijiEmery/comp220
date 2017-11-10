@@ -1,157 +1,109 @@
 
 #ifndef AssociativeArray_h
 #define AssociativeArray_h
+#include <algorithm>        // std::lower_bound
+#include "DynamicArray.h"
 
-template <typename Key, typename Value, typename Impl<class,class>>
-class AssociativeArray : public Impl<Key, Value> {
-public:
-    typedef Key Key;
-    typedef Value Value;
-
-    AssociativeArray () : Impl<Key, Value> {}
-    AssociativeArray (const AssociativeArray<Key, Value>& other) { 
-        this->insert(other.begin(), other.end()); 
-    }
-    AssociativeArray (const AssociativeArray<Key, Value>& other) {
-        this->swap(other);
-    }
-    AssociativeArray (const std::initializer_list<std::pair<Key, Value>>& values) {
-        this-insert(values.begin(), values.end());
-    }
-    AssociativeArray<Key, Value>& operator= (const AssociativeArray<Key, Value>& other) {
-        if (this != &other) {
-            this->clear();
-            this->insert(other.begin(), other.end());
+struct AADefaultStrategy {
+    template <typename KV, typename Key>
+    static size_t locate (
+        const DynamicArray<KV>& elements,
+        const Key& key,
+        size_t n
+    ) {
+        for (size_t i = 0; i < n; ++i) {
+            if (elements[i].first == key) {
+                return i;
+            }
         }
-        return *this;
+        return n;
     }
-    AssociativeArray<Key, Value>& operator= (AssociativeArray<Key, Value>&& other) {
-        if (this != other) {
-            this->swap(other);
-        }
-        return *this;
+    template <typename KV>
+    static void insert (
+        DynamicArray<KV>& elements,
+        const KV& kv,
+        size_t  i,
+        size_t& n
+    ) {
+        elements[i] = kv;
+        if (i == n) { ++n; }
     }
-    ~AssociativeArray () {
-        this->clear();
-    }
-    bool containsKey (const Key& key) const { return this->contains(key); }
-    void deleteKey   (const Key& key) const { this->remove(key); }
-
-    template <typename It, typename V>
-    class Iterator {
-        It it;
-
-        template <typename... Args>
-        Iterator (Args... args) : it(args...) {}
-    public:
-        Iterator () : it() {}
-        Iterator (const Iterator&) = default;
-        Iterator& operator= (const Iterator&) = default;
-        ~Iterator () {}
-
-        friend bool operator== (const Iterator<V>& a, const Iterator<V>& b) {
-            return cmp(a.it, b.it) == 0;
-        }
-        friend bool operator!= (const Iterator<V>& a, const Iterator<V>& b) {
-            return cmp(a.it, b.it) != 0;
-        }
-        operator bool () const { return bool(it); }
-        const V& operator*  () const { return static_cast<const V&>(*(it.get())); }
-        V&       operator*  ()       { return static_cast<V&>(*(it.get())); }
-        const V* operator-> () const { return static_cast<const V*>(it.get()); }
-        V*       operator-> ()       { return static_cast<V*>(it.get()); }
-        Iterator<V>& operator++ ()   { return it.advance(), *this; }
-        operator Iterator<const V> () const { return { it }; }
-    };
-
-    typedef Iterator<Impl<Key,Value>::KeyIterator, Key>         iterator;
-    typedef Iterator<Impl<Key,Value>::KeyIterator, const Key>   const_iterator;
-
-    iterator begin () { return iterator(static_cast<Impl<Key,Value>*>(this)); }
-    iterator end   () { return iterator(); }
-
-    const_iterator begin () { return const_iterator(static_cast<Key,Value>*>(this)); }
-    const_iterator end   () { return const_iterator(); }
-
-    const_iterator cbegin () const { return begin(); }
-    const_iterator cend   () const { return end();   }
 };
 
-template <typename K, typename V>
-class ListImpl {
-    struct Node {
-        std::pair<K,V> kv;
-        Node* next = nullptr;
-        Node (const K& key, const V& value) : kv(key, value) {}
-        friend int cmp (const Node* a, const Node* b) {
-            return static_cast<ptrdiff_t>(b) - static_cast<ptrdiff_t>(a);
-        }
-    };
-    Node* head = nullptr;
-protected:
-    struct BaseIterator {
-        Node* node;
-        BaseIterator (const Node* node = nullptr) : node(node) {}
-        BaseIterator (const BaseIterator&) = default;
-        BaseIterator& operator= (const BaseIterator&) = default;
-        ~BaseIterator () {}
 
-        operator bool () const { return node != nullptr; }
-        void advance () { if (node) node = node->next; }
-    };
-    struct KeyIterator : public BaseIterator {
-        KeyIterator (ListImpl<K,V>& self) : BaseIterator(self.node) {}
-        K& get () { return node->kv.first; }
-        const K& get () const { return node->kv.first; }
-        friend int cmp (const KeyIterator& a, const KeyIterator& b) { return cmp(a.node, b.node); }
-    };
-    struct ValueIterator : public BaseIterator {
-        ValueIterator (ListImpl<K,V>& self) : BaseIterator(self.node) {}
-        V& get () { return node->kv.second; }
-        const V& get () const { return node->kv.second; }
-        friend int cmp (const KeyIterator& a, const KeyIterator& b) { return cmp(a.node, b.node); }
-    };
-    struct Iterator : public BaseIterator {
-        Iterator (ListImpl<K,V>& self) : BaseIterator(self.node) {}
-        std::pair<K,V>& get () { return node->kv; }
-        const std::pair<K,V>& get () const { return node->kv; }
-        friend int cmp (const KeyIterator& a, const KeyIterator& b) { return cmp(a.node, b.node); }
-    };
+struct AAFastBinaryStrategy {
+    template <typename KV, typename Key>
+    static size_t locate (
+        const DynamicArray<KV>& elements,
+        const Key& key,
+        size_t n
+    ) {
+        const KV* end    = &(elements[n]);
+        const KV* begin  = &(elements[0]);
+        auto ptr   = std::upper_bound(begin, end, KV(key, {}), [](const KV& a, const KV& b) { return a.first < b.first; });
+        return static_cast<size_t>(ptr - begin);
+    }
+    template <typename KV>
+    static void insert (
+        DynamicArray<KV>& elements,
+        const KV& kv,
+        size_t  i,
+        size_t& n
+    ) {
+        elements[i] = kv;
+        if (i == n) { ++n; }
+    }
+};
+
+/* Unordered associative array */
+template <typename Key, typename Value, typename InsertStrategy = AADefaultStrategy>
+class AssociativeArray {
+    typedef AssociativeArray<Key,Value,InsertStrategy>  This;
+    typedef std::pair<Key,Value>                        KV;
+
+    DynamicArray<KV>    elements;
+    size_t              count = 0;        // num unique elements
+    const Value         defaultValue;
 public:
-    ListImpl () {}
-    ListImpl (const ListImpl&) {}
-    ListImpl& operator= (const ListImpl&) {}
+    AssociativeArray () : defaultValue() {}
+    AssociativeArray (const std::initializer_list<KV>& values) { insert(values); }
+    AssociativeArray (const This& other) : elements(other.elements), count(other.count), defaultValue() {}
+    This& operator=  (const This& other) { elements = other.elements; count = other.count; return *this; }
+    ~AssociativeArray () { clear(); }
+private:
+    size_t find (const Key& key) const { return InsertStrategy::locate(elements, key, count); }
+    void insert (size_t i, const KV& kv) { InsertStrategy::insert(elements, kv, i, count); }
+public:
+    size_t size () const { return count; }
+    operator bool () const { return count != 0; }
+    void  clear () { count = 0; }
 
-    V& operator[] (const K& key) {
-        for (Node*& node = head; true; node = node->next) {
-            if (node == nullptr) {
-                return (node = new Node(key, {}, nullptr))->value;
-            } else if (node.key == key) {
-                return node.value;
-            }
+    Value& operator[] (const Key& key) {
+        auto i = find(key);
+        if (i == count) {
+            insert(i, { key, {}});
+        }
+        return elements[i].second;
+    }
+    const Value& operator[] (const Key& key) const {
+        auto i = find(key);
+        if (i == count) { return elements[i].second; }
+        else            { return defaultValue; }
+    }
+    bool containsKey (const Key& key) {
+        return find(key) != count;
+    }
+    void deleteKey (const Key& key) {
+        auto i = find(key);
+        if (i != count) {
+            std::swap(elements[i], elements[--count]);
         }
     }
-    const V& operator[] (const K& key) const {
-        for (Node* node = head; node != nullptr; node = node->next) {
-            if (node->key == key) {
-                return node->value;
-            }
-        }
-        return {};
+    void insert (const std::initializer_list<KV>& values) {
+        insert(values.begin(), values.end());
     }
-    bool contains (const K& key) const {
-        for (Node* node = head; node != nullptr; node = node->next) {
-            if (node->key == key) {
-                return true;
-            }
-        }
-        return false;
-    }
-    void insert (const K& key, const V& value) {
-        (*this)[key] = value;
-    }
-    void insert (const std::pair<K,V> kv) {
-        insert(kv.first, kv.second);
+    void insert (const KV& kv) { 
+        insert(find(kv.first), kv); 
     }
     template <typename It>
     void insert (It begin, It end) {
@@ -159,16 +111,6 @@ public:
             insert(*begin);
         }
     }
-};
-
-template <typename K, typename V>
-struct ArrayImpl {
-
-};
-
-template <typename K, typename V>
-struct BTreeImpl {
-
 };
 
 #endif // AssociativeArray_h
