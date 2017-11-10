@@ -22,6 +22,7 @@ include_directories(src ../assignment_03/src)
 
 # executables: main program + testdriver
 add_executable(testdriver       src/AssociativeArray.TestDriver.cpp)
+add_executable(kvtest_          src/TestKV.cpp)
 add_executable(dvc              src/dvc.cpp)
 
 add_custom_target(run
@@ -31,3 +32,7 @@ add_custom_target(run
 add_custom_target(test
     COMMAND ./testdriver
     DEPENDS testdriver)
+
+add_custom_target(kvtest
+    COMMAND ./kvtest_
+    DEPENDS kvtest_)

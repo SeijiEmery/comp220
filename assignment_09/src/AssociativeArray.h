@@ -111,6 +111,13 @@ public:
             insert(*begin);
         }
     }
+    typedef KV* iterator;
+    typedef const KV* const_iterator;
+
+    iterator begin () { auto unused = end(); return &elements[0]; }
+    iterator end   () { return &elements[count]; }
+    const_iterator begin () const { return &elements[0]; }
+    const_iterator end   () const { return &elements[count]; }
 };
 
 #endif // AssociativeArray_h
