@@ -124,6 +124,48 @@ bool parse (const char* line, ParseResult& result) {
     return true;
 }
 
+class DuplicateFilterer {
+    // Bitset data structure, used to implement a simple hashset for duplicate element removal
+    // (can use perfect hashing for this data set due to its unique properties).
+    class Bitset {
+        DynamicArray<size_t> array;
+        enum { BITS = 4 * sizeof(size_t) };
+    public:
+        Bitset (size_t count = 0) : array(count / BITS + 1) {}
+        void set   (size_t i) { array[i / BITS] |=  (1 << (i % BITS)); }
+        void clear (size_t i) { array[i / BITS] &= ~(1 << (i % BITS)); }
+        bool get   (size_t i) { return array[i / BITS] & (1 << (i % BITS)); }
+        static void unittest ();
+    };
+
+    // We've implemented perfect hashing above, so can use this to eliminate duplicates.
+    Bitset hashset;
+
+    // duplicate list, for debugging purposes
+    AssociativeArray<int, AssociativeArray<std::string, int>> duplicates;
+public:
+    DuplicateFilterer () {}
+
+    bool isUnique (const ParseResult& result) {
+        if (hashset.get(result.hash)) {
+            duplicates[result.hash][{ result.line }]++;
+            return false;
+        } else {
+            hashset.set(result.hash);
+            return true;
+        }
+    }
+    ~DuplicateFilterer () {
+        std::cout << "\nDuplicate hit result(s):\n";
+        for (const auto& hash : duplicates) {
+            std::cout << hash.first << ":\n";
+            for (const auto& line : hash.second) {
+                std::cout << "    " << line.second << ": '" << line.first << "'\n";
+            }
+        }
+    }
+};
+
 
 int main (int argc, const char** argv) {
     unittest_4atoi();
@@ -143,10 +185,6 @@ int main (int argc, const char** argv) {
         }
     }
 
-    typedef AssociativeArray<std::string, int>              SectionCount;
-    typedef AssociativeArray<std::string, SectionCount>     SubjectDict;
-    SubjectDict subjects;
-
     // Load file
     std::ifstream file { path };
     if (!file) {
@@ -156,10 +194,19 @@ int main (int argc, const char** argv) {
         std::cout << "Loaded file '" << path << "'" << std::endl;
     }
 
+    // List / collection of all unique subject elements
+    typedef AssociativeArray<std::string, int>              SectionCount;
+    typedef AssociativeArray<std::string, SectionCount>     SubjectDict;
+    SubjectDict subjects;
+
+    // Hash-based duplicate filterer
+    DuplicateFilterer filterer;
+
+    // Parse lines
     std::string line;
     ParseResult result;
     while (getline(file, line)) {
-        if (parse(line.c_str(), result)) {
+        if (parse(line.c_str(), result) && filterer.isUnique(result)) {
             // std::cout << result << " (from " << line << ")\n";
 
             // Nice, behavior of associative array lets us do this:
