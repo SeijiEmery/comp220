@@ -239,6 +239,12 @@ template <typename A, typename B> auto minus (A a, B b) -> decltype(a - b) { ret
 template <typename A, typename B> auto mul   (A a, B b) -> decltype(a * b) { return a * b; }
 template <typename A, typename B> auto div   (A a, B b) -> decltype(a / b) { return a / b; }
 template <typename A, typename B> auto mod   (A a, B b) -> decltype(a % b) { return a % b; }
+template <typename A, typename B> auto equal (A a, B b) -> bool { return a == b; }
+template <typename A, typename B> auto less  (A a, B b) -> bool { return a < b;  }
+template <typename A, typename B> auto _or   (A a, B b) -> bool { return a || b;  }
+template <typename A, typename B> auto _and  (A a, B b) -> bool { return a && b;  }
+template <typename A>             bool _not  (A a)              { return !a; }
+template <typename A, typename B> B    _cast (A a)              { return static_cast<B>(a); }
 
 
 template <typename F, typename A>
@@ -255,6 +261,28 @@ template <typename F, typename A>
 auto bind (F f, A a) -> Bind1<F, A> {
     return { f, a };
 }
+template <typename F>
+auto bind (F f) -> F { 
+    return f; 
+}
+template <typename F, typename A, typename... Args> 
+auto bind (F f, A a, Args... args) -> decltype(bind(Bind1<F,A>{ f, a }, args...)) {
+    return bind(Bind1<F,A>{ f, a }, args...);
+}
+
+template <typename F, typename G>
+struct Chain1 {
+    F f;
+    G g;
+
+    Chain1 (F f, G g) : f(f), g(g) {}
+    template <typename... Args>
+    auto operator ()(Args... args) const -> decltype(g(f(args...))) { return g(f(args...)); }
+};
+template <typename F, typename G>
+auto compose (F f, G g) -> Chain1<F,G> { return { f, g }; }
+
+
 
 int main () {
     // auto ints     = integers();
@@ -263,6 +291,19 @@ int main () {
     // auto str_ints = map(itoa, n_ints);
     // auto joined   = join(", ", str_ints);
     // writeln() << joined;
+
+    writeln() << (20 - 8);
+    writeln() << bind(&minus<int,int>)(20, 8);
+    writeln() << bind(&minus<int,int>, 20)(8);
+    writeln() << bind(&minus<int,int>, 20, 8)();
+    writeln() << bind(bind(&minus<int,int>,20),8)();
+
+    auto toCelsius = compose(bind(&plus<double,double>, -32.0), bind(&mul<double,double>, 5.0 / 9.0));
+    auto toFahrenheight = compose(bind(&mul<double,double>, 9.0 / 5.0), bind(&plus<double,double>, +32.0));
+
+    writeln() << "59.0 F = " << toCelsius(59.0) << " C = " << toFahrenheight(toCelsius(59.0)) << " F";
+    writeln() << "32.0 F = " << toCelsius(32.0) << " C = " << toFahrenheight(toCelsius(32.0)) << " F";
+    writeln() << "99.9 F = " << toCelsius(99.9) << " C = " << toFahrenheight(toCelsius(99.9)) << " F";
 
     writeln() << join(", ", map(itoa, take(10, filter(odd, integers()))));
     writeln() << join(", ", map(itoa, map(bind(&mul<int,int>, 10), take(10, filter(even, integers())))));
