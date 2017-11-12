@@ -1,12 +1,12 @@
 // Programmer: Seiji Emery
 // Programmer ID: M00202623
 //
-// dvc_version_3.cpp
+// DvcSchedule9.cpp
 //
-// Implements a very fast, and highly modular / extensible DVC parser. Also implements a bunch of 
-// tests / benchmarks for default configurations of said parser(s) to meet assignment 8's part 1 / 2 specs.
+// Implements a modified DVC parser that displays subjects / sections as a hierarchical tree.
+// Also demonstrates the use of AssociativeArray.
 //
-// remote source: https://github.com/SeijiEmery/comp220/blob/master/assignment_08/src/dvc_version_3.cpp
+// remote source: https://github.com/SeijiEmery/comp220/blob/master/assignment_09/src/DvcSchedule9.cpp
 //
 #include <iostream>
 #include <iomanip>
@@ -57,25 +57,6 @@ LineWriter report (std::ostream& os = std::cout) { return writeln(os, SET_CYAN);
 LineWriter warn   (std::ostream& os = std::cout) { return writeln(os, SET_RED); }
 LineWriter info   (std::ostream& os = std::cout) { return writeln(os, SET_GREEN); }
 
-typedef size_t hash_t;
-
-// Simple low overhead, no-copying slicable string implementation.
-// (replacement for std::string / const char*; lifetime of referenced memory must be exceed that of all slices...)
-template <typename T>
-struct Slice {
-private:
-    T _start; size_t _size;
-public:
-    Slice () : Slice(nullptr, 0) {}
-    Slice (T start, size_t size) : _start(start), _size(size) {}
-    Slice (const Slice&) = default;
-    Slice& operator= (const Slice&) = default;
-    operator bool () const { return _start != nullptr; }
-    T start () const { return _start; } 
-    T end   () const { return _start + _size; }
-    size_t size () const { return _size; }
-    std::string str () const { return std::string(_start, _size); }
-};
 
 // Utility macro: assembles a 32-bit integer out of 4 characters / bytes.
 // Assumes little endian, won't work on PPC / ARM (would just need to swap order).
@@ -108,7 +89,7 @@ void unittest_4atoi () {
 }
 
 //
-// Parsing algorithm (optimized to only produce hash, etc)
+// Parsing algorithm
 //
 
 struct ParseResult {
@@ -160,6 +141,10 @@ bool parse (const char* file, size_t line_num, const char* line, ParseResult& re
     #undef require
 }
 
+//
+// Subject / section filtering, uses bitset + perfect hashing
+//
+
 class DuplicateFilterer {
     // Bitset data structure, used to implement a simple hashset for duplicate element removal
     // (can use perfect hashing for this data set due to its unique properties).
@@ -202,10 +187,12 @@ public:
     }
 };
 
+//
+// Main program
+//
 
 int main (int argc, const char** argv) {
     unittest_4atoi();
-    //Bitset::unittest();
     std::cout << "Programmer: Seiji Emery\n"
               << "Programmer's id: M00202623\n"
               << "File: " __FILE__ "\n\n";
@@ -263,7 +250,8 @@ int main (int argc, const char** argv) {
         });
     }
 
-    // And since I implemented iterators using std::pair<K,V>:
+    // Quite simple (and efficient) since I implemented iterators using std::pair<K,V>.
+    // Note that this just directly iterates over element memory, which is implemented internally as a DynamicArray.
     for (const auto& subject : subjects) {
         std::cout 
             << subject.first << ", " 
