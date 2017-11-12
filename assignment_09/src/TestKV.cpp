@@ -107,35 +107,36 @@ public:
 template <typename It>
 auto sequence (It begin, It end) -> RSequence<It> { return { begin, end }; }
 
-template <typename R, typename T, typename Range>
+
+template <typename F, typename Range>
 class RMap {
+    F f;
     Range range;
-    std::function<R(T)> f;
 public:
-    RMap (Range range, std::function<R(T)> f) : range(range), f(f) {}
+    RMap (F f, Range range) : f(f), range(range) {}
     operator bool () const { return bool(range); }
     RMap& operator++ () { return ++range, *this; }
-    R     operator*  () { return f(*range); }
+    auto  operator*  () -> decltype(f(*range)) { return f(*range); }
 };
+template <typename F, typename Range>
+auto map (F f, Range range) -> RMap<F,Range> { return { f, range }; }
 
-template <typename R, typename T, typename Range>
-auto map (std::function<R(T)> f, Range range) -> RMap<R,T,Range> { return { range, f }; }
-
-template <typename It, typename R, typename T>
-auto map (std::function<R(T)> f, It begin, It end) -> decltype(map(f, sequence(begin, end))) {
+template <typename F, typename It>
+auto map (F f, It begin, It end) -> decltype(map(f, sequence(begin, end))) {
     return map(f, sequence(begin, end));
 }
 
-template <typename R, typename T, typename Range>
-auto reduce (std::function<R(R,T)> f, Range range, R first) -> R {
+
+template <typename F, typename Range, typename R>
+auto reduce (F f, Range range, R first) -> R {
     for (; range; ++range) {
         first = f(first, *range);
     }
     return first;
 }
-template <typename T, typename Range>
-auto reduce (std::function<T(T,T)> f, Range range) -> T {
-    if (!range) return T();
+template <typename F, typename Range>
+auto reduce (F f, Range range) -> decltype(*range) {
+    if (!range) return {};
     else {
         auto first = *range; ++range;
         for (; range; ++range) {
@@ -175,7 +176,7 @@ int main () {
             if (array.size() == 0) {
                 report() << "[]";
             } else {
-                static const std::function<std::string(const KV&)> toString = [](const KV& kv) -> std::string { return kv.first + " = " + kv.second; };
+                static const auto toString = [](const KV& kv) -> std::string { return kv.first + " = " + kv.second; };
                 report() << "[ " << join(", ", map(toString, array.begin(), array.end())) << " ]";
             }
         })
