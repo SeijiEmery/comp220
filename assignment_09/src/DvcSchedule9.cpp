@@ -138,7 +138,7 @@ int main (int argc, const char** argv) {
         }
     }
 
-    typedef AssociativeArray<std::string, int>              SectionCount;
+    typedef AssociativeArray<int, int>              SectionCount;
     typedef AssociativeArray<std::string, SectionCount>     SubjectDict;
     SubjectDict subjects;
 
@@ -155,7 +155,23 @@ int main (int argc, const char** argv) {
     ParseResult result;
     while (getline(file, line)) {
         if (parse(line.c_str(), result)) {
-            std::cout << result << " (from " << line << ")\n";
+            // std::cout << result << " (from " << line << ")\n";
+
+            // Nice, behavior of associative array lets us do this:
+            subjects[result.subject][result.section]++;
+        }
+    }
+
+    // And since I implemented iterators using std::pair<K,V>:
+    for (const auto& subject : subjects) {
+        std::cout 
+            << subject.first << ", " 
+            << subject.second.size() << " course(s)\n";
+
+        for (const auto& section : subject.second) {
+            std::cout 
+                << "    " << subject.first << '-' << section.first 
+                << ", " << section.second << " section(s)\n";
         }
     }
     return 0;
