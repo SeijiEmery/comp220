@@ -21,11 +21,41 @@
 #include "AssociativeArray.h"
 #include "DynamicArray.h"
 
-
-
 //
 // Utilities
 //
+
+#define SET_COLOR(code) "\033[" code "m"
+#define CLEAR_COLOR SET_COLOR("0")
+#define SET_CYAN    SET_COLOR("36;1")
+#define SET_RED     SET_COLOR("31;1")
+#define SET_GREEN   SET_COLOR("32;1")
+#define SET_YELLOW  SET_COLOR("33;1")
+#define SET_BLUE    SET_COLOR("34;1")
+#define SET_PINK    SET_COLOR("35;1")
+
+struct LineWriter {
+    std::ostream& os;
+    bool shouldClearColor;
+    LineWriter (std::ostream& os, const char* startColor = nullptr) : 
+        os(os), shouldClearColor(startColor != nullptr)
+    {
+        if (startColor) { os << startColor; }
+    }
+    template <typename T>
+    LineWriter& operator<< (const T& other) {
+        return os << other, *this;
+    }
+    ~LineWriter () {
+        if (shouldClearColor) { os << CLEAR_COLOR "\n"; }
+        else { os << '\n'; }
+    }
+};
+LineWriter writeln  (std::ostream& os, const char* color = nullptr) { return LineWriter(os, color); }
+LineWriter writeln  (const char* color = nullptr) { return LineWriter(std::cout, color); }
+LineWriter report (std::ostream& os = std::cout) { return writeln(os, SET_CYAN); }
+LineWriter warn   (std::ostream& os = std::cout) { return writeln(os, SET_RED); }
+LineWriter info   (std::ostream& os = std::cout) { return writeln(os, SET_GREEN); }
 
 typedef size_t hash_t;
 
@@ -92,36 +122,42 @@ struct ParseResult {
     }
 };
 
-bool parse (const char* line, ParseResult& result) {
+bool parse (const char* file, size_t line_num, const char* line, ParseResult& result) {
+    #define require(context, expr) if (!(expr)) { warn(std::cerr) << "PARSING ERROR (" \
+            << context << ", " __FILE__ ":" << __LINE__ << ") in " \
+            << file << ':' << line_num << ", at '" << line << "')"; return false; }
+
     result.line = line;
     size_t semester = 0;
     switch (((uint32_t*)line)[0]) {
-        case PACK_STR_4('S','p','r','i'): assert((((uint32_t*)line)[1] & 0x00FFFFFF) == PACK_STR_4('n','g',' ','\0')); line += 7; semester = 0; break;
-        case PACK_STR_4('S','u','m','m'): assert((((uint32_t*)line)[1] & 0x00FFFFFF) == PACK_STR_4('e','r',' ','\0')); line += 7; semester = 1; break;
-        case PACK_STR_4('F','a','l','l'): assert(line[4] == ' ');                                                         line += 5; semester = 2; break;
-        case PACK_STR_4('W','i','n','t'): assert((((uint32_t*)line)[1] & 0x00FFFFFF) == PACK_STR_4('e','r',' ','\0')); line += 7; semester = 3; break;
+        case PACK_STR_4('S','p','r','i'): require("expected season", (((uint32_t*)line)[1] & 0x00FFFFFF) == PACK_STR_4('n','g',' ','\0')); line += 7; semester = 0; break;
+        case PACK_STR_4('S','u','m','m'): require("expected season", (((uint32_t*)line)[1] & 0x00FFFFFF) == PACK_STR_4('e','r',' ','\0')); line += 7; semester = 1; break;
+        case PACK_STR_4('F','a','l','l'): require("expected season", line[4] == ' ');                                                         line += 5; semester = 2; break;
+        case PACK_STR_4('W','i','n','t'): require("expected season", (((uint32_t*)line)[1] & 0x00FFFFFF) == PACK_STR_4('e','r',' ','\0')); line += 7; semester = 3; break;
         default: return false;
     }
-    assert(isnumber(line[0]) && line[4] == '\t');
+    require("expected year", isnumber(line[0]) && line[4] == '\t');
     result.hash = semester | (((_4atoi(line) - 2000) & 31) << 2);
     line += 5;
 
-    assert(isnumber(line[0]) && line[4] == '\t');
+    require("expected section", isnumber(line[0]) && line[4] == '\t');
     size_t code = _4atoi(line);
     result.hash |= (code << 8);
     line += 5;
 
-    assert(isupper(line[0]));
+    require("expected course", isupper(line[0]));
     const char* end = strchr(line, '-');
-    assert(end != nullptr && end != line);
+    require("expected course", end != nullptr && end != line);
     result.subject = { line, (size_t)(end - line) };
 
-    assert(*end == '-');
+    require("expected section", *end == '-');
     const char* sbegin = end + 1;
     const char* send   = strchr(sbegin, '\t');
-    assert(send != nullptr && send != sbegin);
+    require("expected section", send != nullptr && send != sbegin);
     result.section = { sbegin, (size_t)(send - sbegin) };
     return true;
+
+    #undef require
 }
 
 class DuplicateFilterer {
@@ -205,8 +241,9 @@ int main (int argc, const char** argv) {
     // Parse lines
     std::string line;
     ParseResult result;
+    size_t line_num = 0;
     while (getline(file, line)) {
-        if (parse(line.c_str(), result) && filterer.isUnique(result)) {
+        if (parse(path, ++line_num, line.c_str(), result) && filterer.isUnique(result)) {
             // std::cout << result << " (from " << line << ")\n";
 
             // Nice, behavior of associative array lets us do this:
