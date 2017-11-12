@@ -235,10 +235,10 @@ std::string itoa (int i) { return std::to_string(i); }
 
 
 template <typename A, typename B> auto plus  (A a, B b) -> decltype(a + b) { return a + b; }
-template <typename A, typename B> auto minus (A a, B b) -> decltype(a - b) { return a - b; }
+template <typename A, typename B> auto minus (A a, B b) -> decltype(b - a) { return b - a; }
 template <typename A, typename B> auto mul   (A a, B b) -> decltype(a * b) { return a * b; }
-template <typename A, typename B> auto div   (A a, B b) -> decltype(a / b) { return a / b; }
-template <typename A, typename B> auto mod   (A a, B b) -> decltype(a % b) { return a % b; }
+template <typename A, typename B> auto div   (A a, B b) -> decltype(b / a) { return b / a; }
+template <typename A, typename B> auto mod   (A a, B b) -> decltype(b % a) { return b / a; }
 template <typename A, typename B> auto equal (A a, B b) -> bool { return a == b; }
 template <typename A, typename B> auto less  (A a, B b) -> bool { return a < b;  }
 template <typename A, typename B> auto _or   (A a, B b) -> bool { return a || b;  }
@@ -282,6 +282,12 @@ struct Chain1 {
 template <typename F, typename G>
 auto compose (F f, G g) -> Chain1<F,G> { return { f, g }; }
 
+template <typename T>
+auto list (std::initializer_list<T> args) -> decltype(sequence(args.begin(), args.end())) {
+    return sequence(args.begin(), args.end());
+}
+
+
 
 
 int main () {
@@ -292,28 +298,48 @@ int main () {
     // auto joined   = join(", ", str_ints);
     // writeln() << joined;
 
+    writeln();
+    writeln() << "These should all be equivalent:";
     writeln() << (20 - 8);
     writeln() << bind(&minus<int,int>)(20, 8);
     writeln() << bind(&minus<int,int>, 20)(8);
     writeln() << bind(&minus<int,int>, 20, 8)();
     writeln() << bind(bind(&minus<int,int>,20),8)();
+    writeln();
 
-    auto toCelsius = compose(bind(&plus<double,double>, -32.0), bind(&mul<double,double>, 5.0 / 9.0));
+    auto toCelsius      = compose(bind(&minus<double,double>, 32.0),    bind(&div<double,double>, 9.0 / 5.0));
     auto toFahrenheight = compose(bind(&mul<double,double>, 9.0 / 5.0), bind(&plus<double,double>, +32.0));
 
-    writeln() << "59.0 F = " << toCelsius(59.0) << " C = " << toFahrenheight(toCelsius(59.0)) << " F";
-    writeln() << "32.0 F = " << toCelsius(32.0) << " C = " << toFahrenheight(toCelsius(32.0)) << " F";
-    writeln() << "99.9 F = " << toCelsius(99.9) << " C = " << toFahrenheight(toCelsius(99.9)) << " F";
+    auto sum = reduce(&plus<int,int>,
+        map([&](double degrees_F) {
+            writeln() 
+                << degrees_F << "F = " 
+                << toCelsius(degrees_F) << "C = " 
+                << toFahrenheight(toCelsius(degrees_F)) << "F"
+            ;
+            return degrees_F;
+        }, list({ 59.0, 32.0, 99.0 }))
+    );
+    writeln() << "total: " << sum << "F = " << toCelsius(sum) << "C";
+    writeln();
+
+
+    // writeln() << "59.0 F = " << toCelsius(59.0) << " C = " << toFahrenheight(toCelsius(59.0)) << " F";
+    // writeln() << "32.0 F = " << toCelsius(32.0) << " C = " << toFahrenheight(toCelsius(32.0)) << " F";
+    // writeln() << "99.9 F = " << toCelsius(99.9) << " C = " << toFahrenheight(toCelsius(99.9)) << " F";
 
     writeln() << join(", ", map(itoa, take(10, filter(odd, integers()))));
     writeln() << join(", ", map(itoa, map(bind(&mul<int,int>, 10), take(10, filter(even, integers())))));
-
+    
     typedef const std::smatch& Match;
     typedef std::string Key;
     typedef std::string Value;
     typedef std::pair<Key,Value> KV;
     typedef AssociativeArray<Key, Value, AADefaultStrategy> Dict;
-    
+
+    writeln();
+    report() << "Starting main program";
+
     Dict array;
     SimpleRegexParser()
         .caseOf("quit", [&](Match match) {
