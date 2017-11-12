@@ -8,7 +8,7 @@ Build instructions:
     mkdir build; cd build
     unzip ../../data/dvc-schedule.txt.zip
     cmake .. -DCMAKE_BUILD_TYPE=Release
-    make test run
+    make run
 
 To just run the dvc parser:
     make run
