@@ -74,7 +74,7 @@ public:
         cases.emplace_back(std::regex(regex), callback);
         return *this;
     }
-    bool parse (std::string& line, std::smatch &match) {
+    bool parse (std::string& line, std::smatch &match) const {
         for (auto& case_ : cases) {
             if (std::regex_search(line, match, case_.first)) {
                 case_.second(match);
@@ -84,14 +84,21 @@ public:
         }
         return false;
     }
+    void parse (std::istream& is) const {
+        std::string line;
+        std::smatch match;
+        while (is) {
+            while (!getline(is, line));
+            while (parse(line, match));
+        }
+    }
 };
 
 int main () {
     AssociativeArray<std::string, std::string, AADefaultStrategy> array;
-    SimpleRegexParser parser;
-
     typedef const std::smatch& Match;
-    parser
+
+    SimpleRegexParser()
         .caseOf("quit", [&](Match match) {
             warn() << "exiting";
             exit(0);
@@ -139,12 +146,7 @@ int main () {
                 warn() << "undefined";
             }
         })
-    ;
-    std::string line;
-    std::smatch match;
-    while (1) {
-        while (!getline(std::cin, line)) {}
-        while (parser.parse(line, match)) {}
-    }
+        .parse(std::cin);
+    return 0;
 }
 
