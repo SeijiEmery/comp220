@@ -70,6 +70,10 @@ public:
     AssociativeArray (const This& other) : elements(other.elements), count(other.count), defaultValue() {}
     This& operator=  (const This& other) { elements = other.elements; count = other.count; return *this; }
     ~AssociativeArray () { clear(); }
+
+    // Move operations
+    AssociativeArray (This&& other) : AssociativeArray() { *this = std::move(other); }
+    This& operator=  (This&& other) { std::swap(elements, other.elements); std::swap(count, other.count); return *this; }
 private:
     size_t find (const Key& key) const { return InsertStrategy::locate(elements, key, count); }
     void insert (size_t i, const KV& kv) { InsertStrategy::insert(elements, kv, i, count); }

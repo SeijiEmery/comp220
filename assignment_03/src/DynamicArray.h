@@ -25,6 +25,15 @@ public:
     DynamicArray& operator= (const DynamicArray<T>&);
     ~DynamicArray ();
 
+    // Move operations
+    DynamicArray (DynamicArray<T>&& other) { *this = std::move(other); }
+    DynamicArray<T>& operator= (DynamicArray<T>&& other) { 
+        std::swap(_capacity, other._capacity);
+        std::swap(_data, other._data);
+        std::swap(_dummy, other._dummy);
+        return *this; 
+    }
+
     // Get / set array capacity
     void capacity (size_t cap);
     size_t capacity () const { return _capacity; }
