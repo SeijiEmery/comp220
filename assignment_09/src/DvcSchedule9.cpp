@@ -82,12 +82,13 @@ void unittest_4atoi () {
 //
 
 struct ParseResult {
-    hash_t              courseHash = 0;
-    const char*         line;
-    Slice<const char*>  subjectStr;
+    std::string subject;
+    int         section;
+    size_t      hash;
+    const char* line;
 
     friend std::ostream& operator<< (std::ostream& os, ParseResult& result) {
-        return os << "(hash: " << result.courseHash << ", subject: " << result.subjectStr.str() << ")";
+        return os << result.subject << "-" << result.section << " (hash " << result.hash << ")";
     }
 };
 
@@ -102,18 +103,19 @@ bool parse (const char* line, ParseResult& result) {
         default: return false;
     }
     assert(isnumber(line[0]) && line[4] == '\t');
-    result.courseHash = semester | (((_4atoi(line) - 2000) & 31) << 2);
+    result.hash = semester | (((_4atoi(line) - 2000) & 31) << 2);
     line += 5;
 
     assert(isnumber(line[0]) && line[4] == '\t');
     size_t code = _4atoi(line);
-    result.courseHash |= (code << 8);
+    result.hash |= (code << 8);
     line += 5;
 
     assert(isupper(line[0]));
     const char* end = strchr(line, '-');
     assert(end != nullptr && end != line);
-    result.subjectStr = { line, (size_t)(end - line) };
+    result.subject = { line, (size_t)(end - line) };
+    result.section = atoi(end+1);
     return true;
 }
 
@@ -136,6 +138,10 @@ int main (int argc, const char** argv) {
         }
     }
 
+    typedef AssociativeArray<std::string, int>              SectionCount;
+    typedef AssociativeArray<std::string, SectionCount>     SubjectDict;
+    SubjectDict subjects;
+
     // Load file
     std::ifstream file { path };
     if (!file) {
@@ -149,7 +155,7 @@ int main (int argc, const char** argv) {
     ParseResult result;
     while (getline(file, line)) {
         if (parse(line.c_str(), result)) {
-            std::cout << result << '\n';
+            std::cout << result << " (from " << line << ")\n";
         }
     }
     return 0;
