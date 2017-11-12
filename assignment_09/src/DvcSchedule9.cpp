@@ -178,13 +178,13 @@ class DuplicateFilterer {
     Bitset hashset;
 
     // duplicate list, for debugging purposes
-    AssociativeArray<int, AssociativeArray<std::string, int>> duplicates;
+    // AssociativeArray<int, AssociativeArray<std::string, int>> duplicates;
 public:
     DuplicateFilterer () {}
 
     bool isUnique (const ParseResult& result) {
         if (hashset.get(result.hash)) {
-            duplicates[result.hash][{ result.line }]++;
+            // duplicates[result.hash][{ result.line }]++;
             return false;
         } else {
             hashset.set(result.hash);
@@ -192,13 +192,13 @@ public:
         }
     }
     ~DuplicateFilterer () {
-        std::cout << "\nDuplicate hit result(s):\n";
-        for (const auto& hash : duplicates) {
-            std::cout << hash.first << ":\n";
-            for (const auto& line : hash.second) {
-                std::cout << "    " << line.second << ": '" << line.first << "'\n";
-            }
-        }
+        // std::cout << "\nDuplicate hit result(s):\n";
+        // for (const auto& hash : duplicates) {
+        //     std::cout << hash.first << ":\n";
+        //     for (const auto& line : hash.second) {
+        //         std::cout << "    " << line.second << ": '" << line.first << "'\n";
+        //     }
+        // }
     }
 };
 
@@ -249,6 +249,18 @@ int main (int argc, const char** argv) {
             // Nice, behavior of associative array lets us do this:
             subjects[result.subject][result.section]++;
         }
+    }
+
+    // Sort results:
+    typedef std::pair<std::string, SectionCount> SubjectKV;
+    std::sort(subjects.begin(), subjects.end(), [](const SubjectKV& a, const SubjectKV& b) {
+        return a.first < b.first;
+    });
+    typedef std::pair<std::string, int> SectionKV;
+    for (auto& subject : subjects) {
+        std::sort(subject.second.begin(), subject.second.end(), [](const SectionKV& a, const SectionKV& b) {
+            return a.first < b.first;
+        });
     }
 
     // And since I implemented iterators using std::pair<K,V>:
