@@ -83,7 +83,7 @@ void unittest_4atoi () {
 
 struct ParseResult {
     std::string subject;
-    int         section;
+    std::string section;
     size_t      hash;
     const char* line;
 
@@ -115,7 +115,12 @@ bool parse (const char* line, ParseResult& result) {
     const char* end = strchr(line, '-');
     assert(end != nullptr && end != line);
     result.subject = { line, (size_t)(end - line) };
-    result.section = atoi(end+1);
+
+    assert(*end == '-');
+    const char* sbegin = end + 1;
+    const char* send   = strchr(sbegin, '\t');
+    assert(send != nullptr && send != sbegin);
+    result.section = { sbegin, (size_t)(send - sbegin) };
     return true;
 }
 
@@ -138,7 +143,7 @@ int main (int argc, const char** argv) {
         }
     }
 
-    typedef AssociativeArray<int, int>              SectionCount;
+    typedef AssociativeArray<std::string, int>              SectionCount;
     typedef AssociativeArray<std::string, SectionCount>     SubjectDict;
     SubjectDict subjects;
 
