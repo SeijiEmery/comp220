@@ -23,8 +23,8 @@ add_executable(dvc4
 add_executable(dvc5
     src/DvcSchedule5.cpp)
 
-add_executable(np
-    src/NaiveParser.cpp)
+# add_executable(np
+#     src/NaiveParser.cpp)
 
 # add_definitions(GROUP_SUBJECTS)
 add_custom_target(rnp
@@ -32,5 +32,5 @@ add_custom_target(rnp
     DEPENDS np)
 
 add_custom_target(run
-    COMMAND ./dvc4 data/dvc-schedule.txt
+    COMMAND ./dvc4
     DEPENDS dvc4)
