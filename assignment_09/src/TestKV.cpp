@@ -308,7 +308,7 @@ int main () {
     writeln();
 
     auto toCelsius      = compose(bind(&minus<double,double>, 32.0),    bind(&div<double,double>, 9.0 / 5.0));
-    auto toFahrenheight = compose(bind(&mul<double,double>, 9.0 / 5.0), bind(&plus<double,double>, +32.0));
+    auto toFahrenheight = compose(bind(&mul<double,double>, 9.0 / 5.0), bind(&plus<double,double>, 32.0));
 
     auto sum = reduce(&plus<int,int>,
         map([&](double degrees_F) {
@@ -330,7 +330,7 @@ int main () {
 
     writeln() << join(", ", map(itoa, take(10, filter(odd, integers()))));
     writeln() << join(", ", map(itoa, map(bind(&mul<int,int>, 10), take(10, filter(even, integers())))));
-    
+
     typedef const std::smatch& Match;
     typedef std::string Key;
     typedef std::string Value;
@@ -352,6 +352,11 @@ int main () {
             } else {
                 static const auto toString = [](const KV& kv) -> std::string { return kv.first + " = " + kv.second; };
                 report() << "[ " << join(", ", map(toString, array.begin(), array.end())) << " ]";
+            }
+        })
+        .caseOf("keys", [&](Match match) {
+            for (auto keys = array.keys(); !keys.empty(); keys.pop()) {
+                report() << keys.front();
             }
         })
         .caseOf("length", [&](Match match) {

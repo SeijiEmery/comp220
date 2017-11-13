@@ -3,6 +3,7 @@
 #define AssociativeArray_h
 #include <algorithm>        // std::lower_bound
 #include "DynamicArray.h"
+#include "Queue.h"
 
 struct AADefaultStrategy {
     template <typename KV, typename Key>
@@ -115,12 +116,42 @@ public:
             insert(*begin);
         }
     }
+
+    // Required as part of assignment spec, but not used (is super inefficient,
+    // creating tons of needless allocations, particularly as my Queue implementation
+    // is NOT very memory efficient (impl as linked list for simplicty)).
+    Queue<Key> keys () const {
+        Queue<Key> keys;
+        for (const auto& kv : *this) {
+            keys.push(kv.first);
+        }
+        return keys;
+    }
+
+    // Iterator implementation.
+    // Is very fast / efficient as it uses raw pointers, possible b/c keys / values are stored in
+    // contiguous memory within a dynamic array. Needless to say, using iterators while modifying the
+    // array (ie. inserting elements), is absolutely illegal; using eg. mismatched iterators 
+    // that refer to different memory locations is completely undefined and may crash your program.
+    //
+    // TLDR; these itererators may be used for:
+    //  – iteration
+    //  - sorting
+    //  - item removal via eg. std::remove_if
+    // They may NOT be used for:
+    //  - insertion
+    //  - any algorithm that grows the array, etc (they're just raw pointers so that wouldn't work)
+    //
+    // Also, note that we call end() in begin() (then throw away the result), which is to
+    // explicitely grow the array to whatever count is. This is an edge case that can occur
+    // in some situations.
+    //
     typedef KV* iterator;
     typedef const KV* const_iterator;
 
-    iterator begin () { auto unused = end(); return &elements[0]; }
+    iterator begin () { auto reserve = end(); return &elements[0]; }
     iterator end   () { return &elements[count]; }
-    const_iterator begin () const { return &elements[0]; }
+    const_iterator begin () const { auto reserve = end(); return &elements[0]; }
     const_iterator end   () const { return &elements[count]; }
 };
 

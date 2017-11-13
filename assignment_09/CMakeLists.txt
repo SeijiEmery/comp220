@@ -17,8 +17,9 @@ else()
         message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
 endif()
 
-# import DynamicArray.h from assignment_03
+# import DynamicArray.h from assignment_03 and Queue.h from assignment_07.
 include_directories(src ../assignment_03/src)
+include_directories(src ../assignment_07/src)
 
 # executables: main program + testdriver
 add_executable(testdriver       src/AssociativeArray.TestDriver.cpp)
