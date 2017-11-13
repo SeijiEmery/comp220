@@ -60,7 +60,7 @@ private:
         size_t  size = 0;
         size_t* data = nullptr;
 
-        Bitset () {}
+        // Bitset () {}
         Bitset (size_t* data, size_t size) { assign(data, size); }
         Bitset (const Bitset& other) = delete;
         Bitset& operator= (const Bitset& other) = delete;
@@ -106,13 +106,19 @@ private:
         {}
         Storage (const Storage& other) = delete;
         Storage& operator= (const Storage& other) = delete;
-        Storage (Storage&& other) { *this = std::move(other); }
-        Storage& operator= (Storage&& other) {
+        // Storage (Storage&& other) { *this = std::move(other); }
+        // Storage& operator= (Storage&& other) {
+        //     std::swap(capacity, other.capacity);
+        //     std::swap(data, other.data);
+        //     std::swap(bitset, other.bitset);
+        //     std::swap(elements, other.elements);
+        //     return *this;
+        // }
+        void swap (Storage& other) {
             std::swap(capacity, other.capacity);
             std::swap(data, other.data);
             std::swap(bitset, other.bitset);
             std::swap(elements, other.elements);
-            return *this;
         }
         ~Storage () {
             for (size_t i = 0; i < size(); ++i) {
@@ -201,9 +207,23 @@ private:
     const char* color;
     LineWriter info () const { return writeln(std::cout, color); }
 public:
+    //
+    // Utility methods...
+    //
+    static Storage make_storage (size_t capacity) {
+        return { capacity };
+    }
+    This create (size_t capacity, double threshold = 0.8) const {
+        return { hashFunction, capacity, threshold };
+    }
+    This clone () { return *this; }
     friend std::ostream& operator<< (std::ostream& os, const This& self) {
         return os << "HashTable { size = " << self.size() << ", " << self.storage << " }";
     }
+
+    //
+    // Primary interface...
+    //
     HashTable () = delete;
     HashTable (HashFunction hashFunction, size_t capacity = 0, double threshold = 0.8)
         : hashFunction(hashFunction)
@@ -213,32 +233,39 @@ public:
     {}
     HashTable (const This& other)
         : hashFunction(other.hashFunction)
-        , storage(other.capacity)
+        , storage(other.storage.size())
         , capacityThreshold(other.capacityThreshold)
         , color(getCyclingColor())
     {
-        insert(other.begin(), other.end());
-        return *this;
+        insert(other.begin(), other.end());   
     }
     This& operator= (const This& other) {
         clear();
         insert(other.begin(), other.end());
+        return *this;
     }
-    This& operator= (This&& other) {
+    void swap (This& other) {
         std::swap(hashFunction, other.hashFunction);
-        std::swap(storage, other.storage);
+        storage.swap(other.storage);
         std::swap(capacityThreshold, other.capacityThreshold);
         std::swap(count, other.count);
         std::swap(color, other.color);
-        return *this;
     }
 
-    HashTable (This&& other)
-        : hashFunction(std::move(other.hashFunction))
-        , storage(std::move(other.storage))
-        , capacityThreshold(other.capacityThreshold)
-        , color(getCyclingColor())
-    {}
+    // This& operator= (This&& other) {
+    //     std::swap(hashFunction, other.hashFunction);
+    //     std::swap(storage, other.storage);
+    //     std::swap(capacityThreshold, other.capacityThreshold);
+    //     std::swap(count, other.count);
+    //     std::swap(color, other.color);
+    //     return *this;
+    // }
+    // HashTable (This&& other)
+    //     : hashFunction(std::move(other.hashFunction))
+    //     , storage(std::move(other.storage))
+    //     , capacityThreshold(other.capacityThreshold)
+    //     , color(getCyclingColor())
+    // {}
     ~HashTable () {}
 
     size_t size () const { return count; }
@@ -247,7 +274,7 @@ public:
         assert((size > count) && "Not enough capacity to hold all data elements!");
         HashTable temp(hashFunction, size);
         temp.insert(begin(), end());
-        *this = std::move(temp);
+        swap(temp);
     }
     void debugMemLayout () {
         storage.each([&](size_t i, bool set, const KeyValue& kv) {
