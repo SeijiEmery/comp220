@@ -45,7 +45,7 @@ static int nextColor = 0;
 const char* getCyclingColor () { auto color = colors[nextColor]; ++nextColor; nextColor %= (sizeof(colors) / sizeof(colors[0])); return color; }
 
 
-template <typename Key, typename Value, typename HashFunction>
+template <typename Key, typename Value, typename HashFunction = size_t(*)(const Key&)>
 class HashTable {
 public:
     typedef HashTable<Key, Value, HashFunction> This;
@@ -126,12 +126,17 @@ public:
         info() << "element size: " << elementSize 
             << " (" << capacity << " * " << sizeof(KeyValue) << " / " << sizeof(size_t) << ")";
 
-        data = new size_t[bitsetSize + elementSize + 1000];
-        info() << "allocated " << (bitsetSize + elementSize) * sizeof(size_t) << " bytes";
+        data = new size_t[bitsetSize + elementSize];
+        info() << "allocated pointer " << data << ", capacity " << capacity 
+               << ", " << (bitsetSize + elementSize) * sizeof(size_t) << " bytes";
         data[bitsetSize + elementSize - 1] = 0;
 
         bitset.assign(data, bitsetSize);
         elements = reinterpret_cast<KeyValue*>(&data[bitsetSize]);
+        info() << "data ptr " << data;
+        info() << "elem ptr " << elements;
+        info() << "back ptr " << &elements[capacity];
+
         info() << "elements offset: " << reinterpret_cast<size_t>(elements) - reinterpret_cast<size_t>(data);
         info() << "back offset: " << reinterpret_cast<size_t>(&elements[capacity-1]) - reinterpret_cast<size_t>(data);
         elements[capacity-1] = {};
@@ -139,18 +144,25 @@ public:
     HashTable (const This& other) 
         : HashTable(other.hashFunction, other.capacity)
     { 
+        info() << "COPY CTOR: copying " << other.count << " elements"; 
         assert(data != nullptr);
-        info() << "copying " << other.count << " elements";
         insert(other.begin(), other.end()); 
     }
-    This& operator= (const This& other) { HashTable temp(other); std::swap(*this, temp); return *this; }
+    This& operator= (const This& other) { 
+        info() << "COPY ASSIGNMENT";
+        HashTable temp(other); 
+        std::swap(*this, temp); 
+        return *this; 
+    }
     HashTable (This&& other)
         : HashTable(other.hashFunction, other.capacity)
     { 
+        info() << "MOVE CTOR: swapping " << other.data << ", " << data << " (capacity " << other.capacity << ", count " << other.count << ")";
         assert(data != nullptr);
         *this = std::move(other); 
     }
     This& operator= (This&& other) {
+        info() << "MOVE ASSIGNMENT";
         info() << "Swapping " << capacity;
         other.info() << "with " << other.capacity;
 
@@ -165,8 +177,10 @@ public:
         return *this;
     }
     ~HashTable () { 
+        info() << "freeing pointer " << data << ", capacity " << capacity;
         assert(data != nullptr);
-        info() << "Destructing " << capacity;
+        // info() << "Destructing " << capacity;
+        info() << "calling destructor(s) (size " << count << ")";
         clear();
         delete[] data;
     }
@@ -226,6 +240,7 @@ public:
     Value& operator[] (const Key& key) {
         auto index = locate(key);
         if (!bitset.get(index)) {
+            info() << "inserting " << key << " at " << index << " into " << elements;
             ++count;
             bitset.set(index);
             elements[index] = { key, {} };
@@ -240,6 +255,7 @@ public:
         auto index = locate(kv.first);
         elements[index] = kv;
         if (!bitset.get(index)) {
+            info() << "inserting " << kv.first << " at " << index << " into " << elements;
             ++count;
             bitset.set(index);
             if (count > capacityThreshold) {
@@ -254,6 +270,7 @@ public:
     void deleteKey (const Key& key) {
         auto index = locate(key);
         if (bitset.get(index)) {
+            info() << "deleting " << key << " at " << index << " from " << elements;
             --count;
             bitset.clear(index);
             elements[index].~KeyValue();
