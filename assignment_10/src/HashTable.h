@@ -60,7 +60,6 @@ private:
         size_t  size = 0;
         size_t* data = nullptr;
 
-        // Bitset () {}
         Bitset (size_t* data, size_t size) { assign(data, size); }
         Bitset (const Bitset& other) = delete;
         Bitset& operator= (const Bitset& other) = delete;
@@ -106,14 +105,16 @@ private:
         {}
         Storage (const Storage& other) = delete;
         Storage& operator= (const Storage& other) = delete;
-        // Storage (Storage&& other) { *this = std::move(other); }
-        // Storage& operator= (Storage&& other) {
-        //     std::swap(capacity, other.capacity);
-        //     std::swap(data, other.data);
-        //     std::swap(bitset, other.bitset);
-        //     std::swap(elements, other.elements);
-        //     return *this;
-        // }
+        Storage (Storage&& other) 
+            : Storage(other.size())
+        { *this = std::move(other); }
+        Storage& operator= (Storage&& other) {
+            std::swap(capacity, other.capacity);
+            std::swap(data, other.data);
+            std::swap(bitset, other.bitset);
+            std::swap(elements, other.elements);
+            return *this;
+        }
         void swap (Storage& other) {
             std::swap(capacity, other.capacity);
             std::swap(data, other.data);
@@ -180,12 +181,17 @@ private:
             Iterator (const Iterator& other) = default;
             Iterator& operator= (const Iterator& other) = default;
 
-            bool operator== (const Iterator<V>& other) const { return storage == other.storage && index == other.index; }
-            bool operator!= (const Iterator<V>& other) const { return storage != other.storage || index != other.index; }
+            template <typename U> bool operator== (const Iterator<U>& other) const { return storage == other.storage && index == other.index; }
+            template <typename U> bool operator!= (const Iterator<U>& other) const { return storage != other.storage || index != other.index; }
+
             Iterator& operator++ () { if (index < storage->size()) { ++index; advance(); } return *this; }
             V& operator*  () const { return storage->elements[index]; }
-            V& operator-> () const { return storage->elements[index]; }
+            V* operator-> () const { return &storage->elements[index]; }
 
+            friend std::ostream& operator<< (std::ostream& os, const Iterator<V>& it) {
+                return os << "HashTable::Iterator {" << *it.storage << ", index " << it.index << " }";
+            }
+            operator Iterator<const V> () const { return { storage, index }; }
         };
         typedef Iterator<KeyValue>       iterator;
         typedef Iterator<const KeyValue> const_iterator;
@@ -197,6 +203,8 @@ private:
         iterator       end   () { return { this, size() }; }
         const_iterator begin () const { return { const_cast<Storage*>(this), 0 }; }
         const_iterator end   () const { return { const_cast<Storage*>(this), size() }; }
+        const_iterator cbegin () const { return begin(); }
+        const_iterator cend  ()  const { return end(); }
     };
 
     HashFunction hashFunction;
@@ -362,6 +370,8 @@ public:
     iterator end   () { return storage.end();   }
     const_iterator begin () const { return storage.begin(); }
     const_iterator end   () const { return storage.end();   }
+    const_iterator cbegin () const { return begin(); }
+    const_iterator cend  ()  const { return end(); }
 
     iterator find (const Key& key) { 
         auto index = locate(key);

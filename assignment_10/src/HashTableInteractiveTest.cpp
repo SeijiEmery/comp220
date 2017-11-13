@@ -22,8 +22,6 @@
 #include "HashTable.h"
 
 
-
-
 struct SimpleRegexParser {
     typedef std::function<void(const std::smatch&)> callback_t;
     typedef std::pair<std::regex, callback_t> case_t;

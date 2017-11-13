@@ -7,10 +7,28 @@
 #include <iostream>     // cerr, cout
 #include <string>       // string
 #include <cstring>
+#include <utility>
 using namespace std;
 
 #include "HashTable.h"
 #include "HashTable.h" // multiple include test
+
+
+// namespace std
+// {
+//     template<typename Key, typename Value> 
+//     struct hash<std::pair<Key, Value>>
+//     {
+//         typedef std::pair<Key, Value> argument_type;
+//         typedef std::size_t result_type;
+//         result_type operator()(argument_type const& p) const noexcept
+//         {
+//             result_type const h1 ( std::hash<Key>{}(p.first) );
+//             result_type const h2 ( std::hash<Value>{}(p.second) );
+//             return h1 ^ (h2 << 1); // or use boost::hash_combine (see Discussion)
+//         }
+//     };
+// };
 
 template <typename HT, typename Key, typename Value>
 void _testHTImpl (const char*, HT ht, const Key[], const Value[]);
@@ -36,23 +54,23 @@ int main () {
     typedef std::pair<std::string, int> pair;
     const pair pairs[4] = { { "lorp", 1 }, { "torg", 2 }, { "mal", -1 }, { "b", 10 } };
 
-    #define TEST_WITH_KEYS(HT, ht, K, keys) \
+    #define TEST_WITH_KEYS(K, keys) \
         TEST_HT_IMPL(K, int, keys, ints); \
         TEST_HT_IMPL(K, double, keys, doubles); \
         TEST_HT_IMPL(K, char, keys, chars); \
-        TEST_HT_IMPL(K, std::string, keys, strings); \
-        TEST_HT_IMPL(K, pair, keys, pairs);
+        TEST_HT_IMPL(K, std::string, keys, strings);
+        // TEST_HT_IMPL(K, pair, keys, pairs);
 
     #define TEST_HT() \
         TEST_WITH_KEYS(int, ints) \
         TEST_WITH_KEYS(double, doubles) \
         TEST_WITH_KEYS(char, chars) \
-        TEST_WITH_KEYS(std::string, strings) \
-        TEST_WITH_KEYS(pair, pairs)
+        TEST_WITH_KEYS(std::string, strings)
+        // TEST_WITH_KEYS(pair, pairs)
 
-    TEST_HT_IMPL()
+    TEST_HT()
 
-    std::cout << "\033[32mAll tests passed\n\033[0m";
+    std::cout << "\n\033[32mAll tests passed\n\033[0m";
     return 0;
 }
 
@@ -150,119 +168,237 @@ void _testHTImpl (
     const Key   keys[], 
     const Value values[]
 ) {
-    SECTION("Testing " << name) {
-        auto dict = hashtable.create(10, 0.8);
-        SECTION("Should initially be empty") {
-            ASSERT_EQ(dict.size(), 0);
-            ASSERT_EQ(bool(dict), false);
-        }
-        SECTION("Test insertion") {
-            dict[keys[0]] = values[0];
-            ASSERT_EQ(dict[keys[0]], values[0]);
-            ASSERT_EQ(dict.size(), 1);
-            ASSERT_EQ(bool(dict), true);
+    SECTION("Testing " << name << "::Storage") {
+        size_t N = 10;
+        auto storage = hashtable.make_storage(N);
 
-            dict[keys[1]] = values[1];
-            ASSERT_EQ(dict[keys[1]], values[1]);
-            ASSERT_EQ(dict.size(), 2);
+        SECTION("test initial values") {
+            SECTION("by iterative inspection") {
+                size_t numSetValues = 0;
+                for (size_t i = storage.size(); i --> 0; ) {
+                    if (storage.contains(i)) {
+                        ++numSetValues;
+                    }
+                }
+                ASSERT_EQ(numSetValues, 0);
+            }
+            SECTION("by each()") {
+                size_t numSetValues = 0;
+                storage.each([&](size_t i, bool set, const std::pair<Key,Value>& values) {
+                    if (set) {
+                        ++numSetValues;
+                    }
+                });
+                ASSERT_EQ(numSetValues, 0);
+            }
+            SECTION("by iteration") {
+                size_t numSetValues = 0;
+                for (auto& kv : storage) {
+                    ++numSetValues;
+                } 
+                ASSERT_EQ(numSetValues, 0);
+            }
+            SECTION("test iterators") {
+                ASSERT_EQ(storage.begin(),  storage.begin());
+                ASSERT_EQ(storage.begin(),  storage.end());
+                ASSERT_EQ(storage.end(),    storage.end());
+
+                ASSERT_EQ(storage.begin(),  storage.cbegin());
+                ASSERT_EQ(storage.cbegin(), storage.begin());
+                ASSERT_EQ(storage.end(),    storage.cend());
+                ASSERT_EQ(storage.cend(),   storage.end());
+            }
         }
-        SECTION("Test duplicate insertion") {
-            dict[keys[0]] = values[1];
-            ASSERT_EQ(dict[keys[0]], values[1]);
-            ASSERT_EQ(dict.size(), 2);
+        SECTION("test maybeInsert key") {
+            ASSERT_EQ(storage.maybeInsert(3, keys[0]), true);
+            ASSERT_EQ(storage.maybeInsert(3, keys[1]), false);
+            ASSERT_EQ(storage.contains(3), true);
+            ASSERT_EQ(storage[3].first, keys[0]);
+            ASSERT_EQ(storage[3].second, Value{});
+
+            SECTION("test iteration") {
+                auto it = storage.begin();
+                ASSERT_NE(it, storage.end());
+                ASSERT_EQ(&(*it), &storage[3]);
+                ASSERT_EQ((*it).first, keys[0]);
+                ASSERT_EQ((*it).second, Value{});
+                ASSERT_EQ(it->first, keys[0]);
+                ASSERT_EQ(it->second, Value{});
+                ++it;
+                ASSERT_EQ(it, storage.end());
+                ++it;
+                ASSERT_EQ(it, storage.end());
+            }
         }
-        SECTION("Test key checking") {
-            ASSERT_EQ(dict.containsKey(keys[0]), true);
-            ASSERT_EQ(dict.containsKey(keys[0]), true);
-            ASSERT_EQ(dict.containsKey(keys[1]), true);
-            ASSERT_EQ(dict.containsKey(keys[2]), false);
-            ASSERT_EQ(dict.containsKey(keys[2]), false);
-            ASSERT_EQ(dict.size(), 2);
+        SECTION("test maybeInsert key-value") {
+            ASSERT_EQ(storage.maybeInsert(4, std::pair<Key,Value> { keys[0], values[1] }), true);
+            ASSERT_EQ(storage.maybeInsert(4, std::pair<Key,Value> { keys[1], values[0] }), false);
+            ASSERT_EQ(storage.contains(4), true);
+            ASSERT_EQ(storage[4].first, keys[0]);
+            ASSERT_EQ(storage[4].second, values[1]);
+
+            SECTION("test iteration") {
+                auto it = storage.begin();
+                ASSERT_NE(it, storage.end());
+                ASSERT_EQ(&(*it), &storage[3]);
+                ++it;
+                ASSERT_NE(it, storage.end());
+                ASSERT_EQ(&(*it), &storage[4]);
+                ++it;
+                ASSERT_EQ(it, storage.end());
+                ++it;
+                ASSERT_EQ(it, storage.end());
+            }
         }
-        SECTION("Test key removal") {
-            dict.deleteKey(keys[0]);
-            ASSERT_EQ(dict.size(), 1);
-            ASSERT_EQ(dict.containsKey(keys[0]), false);
-        }
-        SECTION("Test removal of nonexistant key") {
-            dict.deleteKey(keys[0]);
-            ASSERT_EQ(dict.size(), 1);
-            ASSERT_EQ(dict.containsKey(keys[0]), false);
-        }
-        SECTION("Test many-insert") {
-            dict.insert({
-                { keys[0], values[1] },
-                { keys[0], values[0] },
-                { keys[1], values[2] },
-                { keys[2], values[2] },
-                { keys[3], values[3] },
+        SECTION("test no other values inserted") {
+            size_t numSetValues = 0;
+            storage.each([&](size_t i, bool set, const std::pair<Key,Value>& values) {
+                if (set) {
+                    ++numSetValues;
+                }
             });
-            ASSERT_EQ(dict.size(), 4);
-            ASSERT_EQ(dict[keys[0]], values[0]);
-            ASSERT_EQ(dict[keys[1]], values[2]);
-            ASSERT_EQ(dict[keys[2]], values[2]);
-            ASSERT_EQ(dict[keys[3]], values[3]);
-        }
-        SECTION("Test copy-construction") {
-            AA second { dict };
-            ASSERT_EQ(second.size(), 4);
-            ASSERT_EQ(second[keys[0]], values[0]);
-            ASSERT_EQ(second[keys[1]], values[2]);
-            ASSERT_EQ(second[keys[2]], values[2]);
-            ASSERT_EQ(second[keys[3]], values[3]);
+            ASSERT_EQ(numSetValues, 2);
 
-            SECTION("Copy modification should not affect original") {
-                second[keys[0]] = values[3];
-                ASSERT_EQ(second[keys[0]], values[3]);
-                ASSERT_EQ(dict[keys[0]], values[0]);
-
-                second.deleteKey(keys[0]);
-                second.deleteKey(keys[1]);
-                ASSERT_EQ(second.size(), 2);
-                ASSERT_EQ(dict.size(), 4);
+            SECTION("test non-const iteration") {
+                size_t i = 0;
+                for (auto& value : storage) {
+                    switch (i++) {
+                        case 0: ASSERT_EQ(&value, &storage[3]); break;
+                        case 1: ASSERT_EQ(&value, &storage[4]); break;
+                        default: ASSERT_EQ(true, false);
+                    }
+                }
+            }
+            SECTION("test const iteration") {
+                size_t i = 0;
+                for (const auto& value : storage) {
+                    switch (i++) {
+                        case 0: ASSERT_EQ(&value, &storage[3]); break;
+                        case 1: ASSERT_EQ(&value, &storage[4]); break;
+                        default: ASSERT_EQ(true, false);
+                    }
+                }
             }
         }
-        SECTION("Test assignment") {
-            AA second;
-            ASSERT_EQ(second.size(), 0);
+        SECTION("test swap") {
 
-            second = dict;
-            ASSERT_EQ(second.size(), 4);
-            ASSERT_EQ(second[keys[0]], values[0]);
-            ASSERT_EQ(second[keys[1]], values[2]);
-            ASSERT_EQ(second[keys[2]], values[2]);
-            ASSERT_EQ(second[keys[3]], values[3]);
+        }
 
-            SECTION("Copy modification should not affect original") {
-                second[keys[0]] = values[3];
-                ASSERT_EQ(second[keys[0]], values[3]);
-                ASSERT_EQ(dict[keys[0]], values[0]);
-
-                second.deleteKey(keys[0]);
-                second.deleteKey(keys[1]);
-                ASSERT_EQ(second.size(), 2);
-                ASSERT_EQ(dict.size(), 4);
-            }
-        }
-        SECTION("Test clear()") {
-            dict.clear();
-            ASSERT_EQ(dict.size(), 0);
-            ASSERT_EQ(dict.containsKey(keys[0]), false);
-            ASSERT_EQ(dict[keys[0]], Value());
-            dict.clear();
-        }
-        SECTION("hasKey() on empty value should not insert") {
-            ASSERT_EQ(dict.containsKey(keys[0]), false);
-            ASSERT_EQ(dict.size(), 0);
-        }
-        SECTION("const operator[] on empty value should not insert") {
-            const AA& constref = dict;
-            ASSERT_EQ(constref[keys[0]], Value());
-            ASSERT_EQ(constref.size(), 0);
-        }
-        SECTION("non-const operator[] should insert") {
-            ASSERT_EQ(dict[keys[0]], Value());
-            ASSERT_EQ(dict.size(), 1);
-        }
     }
+
+    // SECTION("Testing " << name) {
+    //     auto dict = hashtable.create(10, 0.8);
+    //     SECTION("Should initially be empty") {
+    //         ASSERT_EQ(dict.size(), 0);
+    //         ASSERT_EQ(bool(dict), false);
+    //     }
+    //     SECTION("Test insertion") {
+    //         dict[keys[0]] = values[0];
+    //         ASSERT_EQ(dict[keys[0]], values[0]);
+    //         ASSERT_EQ(dict.size(), 1);
+    //         ASSERT_EQ(bool(dict), true);
+
+    //         dict[keys[1]] = values[1];
+    //         ASSERT_EQ(dict[keys[1]], values[1]);
+    //         ASSERT_EQ(dict.size(), 2);
+    //     }
+    //     SECTION("Test duplicate insertion") {
+    //         dict[keys[0]] = values[1];
+    //         ASSERT_EQ(dict[keys[0]], values[1]);
+    //         ASSERT_EQ(dict.size(), 2);
+    //     }
+    //     SECTION("Test key checking") {
+    //         ASSERT_EQ(dict.containsKey(keys[0]), true);
+    //         ASSERT_EQ(dict.containsKey(keys[0]), true);
+    //         ASSERT_EQ(dict.containsKey(keys[1]), true);
+    //         ASSERT_EQ(dict.containsKey(keys[2]), false);
+    //         ASSERT_EQ(dict.containsKey(keys[2]), false);
+    //         ASSERT_EQ(dict.size(), 2);
+    //     }
+    //     SECTION("Test key removal") {
+    //         dict.deleteKey(keys[0]);
+    //         ASSERT_EQ(dict.size(), 1);
+    //         ASSERT_EQ(dict.containsKey(keys[0]), false);
+    //     }
+    //     SECTION("Test removal of nonexistant key") {
+    //         dict.deleteKey(keys[0]);
+    //         ASSERT_EQ(dict.size(), 1);
+    //         ASSERT_EQ(dict.containsKey(keys[0]), false);
+    //     }
+    //     SECTION("Test many-insert") {
+    //         dict.insert({
+    //             { keys[0], values[1] },
+    //             { keys[0], values[0] },
+    //             { keys[1], values[2] },
+    //             { keys[2], values[2] },
+    //             { keys[3], values[3] },
+    //         });
+    //         ASSERT_EQ(dict.size(), 4);
+    //         ASSERT_EQ(dict[keys[0]], values[0]);
+    //         ASSERT_EQ(dict[keys[1]], values[2]);
+    //         ASSERT_EQ(dict[keys[2]], values[2]);
+    //         ASSERT_EQ(dict[keys[3]], values[3]);
+    //     }
+    //     SECTION("Test copy-construction") {
+    //         AA second { dict };
+    //         ASSERT_EQ(second.size(), 4);
+    //         ASSERT_EQ(second[keys[0]], values[0]);
+    //         ASSERT_EQ(second[keys[1]], values[2]);
+    //         ASSERT_EQ(second[keys[2]], values[2]);
+    //         ASSERT_EQ(second[keys[3]], values[3]);
+
+    //         SECTION("Copy modification should not affect original") {
+    //             second[keys[0]] = values[3];
+    //             ASSERT_EQ(second[keys[0]], values[3]);
+    //             ASSERT_EQ(dict[keys[0]], values[0]);
+
+    //             second.deleteKey(keys[0]);
+    //             second.deleteKey(keys[1]);
+    //             ASSERT_EQ(second.size(), 2);
+    //             ASSERT_EQ(dict.size(), 4);
+    //         }
+    //     }
+    //     SECTION("Test assignment") {
+    //         AA second;
+    //         ASSERT_EQ(second.size(), 0);
+
+    //         second = dict;
+    //         ASSERT_EQ(second.size(), 4);
+    //         ASSERT_EQ(second[keys[0]], values[0]);
+    //         ASSERT_EQ(second[keys[1]], values[2]);
+    //         ASSERT_EQ(second[keys[2]], values[2]);
+    //         ASSERT_EQ(second[keys[3]], values[3]);
+
+    //         SECTION("Copy modification should not affect original") {
+    //             second[keys[0]] = values[3];
+    //             ASSERT_EQ(second[keys[0]], values[3]);
+    //             ASSERT_EQ(dict[keys[0]], values[0]);
+
+    //             second.deleteKey(keys[0]);
+    //             second.deleteKey(keys[1]);
+    //             ASSERT_EQ(second.size(), 2);
+    //             ASSERT_EQ(dict.size(), 4);
+    //         }
+    //     }
+    //     SECTION("Test clear()") {
+    //         dict.clear();
+    //         ASSERT_EQ(dict.size(), 0);
+    //         ASSERT_EQ(dict.containsKey(keys[0]), false);
+    //         ASSERT_EQ(dict[keys[0]], Value());
+    //         dict.clear();
+    //     }
+    //     SECTION("hasKey() on empty value should not insert") {
+    //         ASSERT_EQ(dict.containsKey(keys[0]), false);
+    //         ASSERT_EQ(dict.size(), 0);
+    //     }
+    //     SECTION("const operator[] on empty value should not insert") {
+    //         const AA& constref = dict;
+    //         ASSERT_EQ(constref[keys[0]], Value());
+    //         ASSERT_EQ(constref.size(), 0);
+    //     }
+    //     SECTION("non-const operator[] should insert") {
+    //         ASSERT_EQ(dict[keys[0]], Value());
+    //         ASSERT_EQ(dict.size(), 1);
+    //     }
+    // }
 }
