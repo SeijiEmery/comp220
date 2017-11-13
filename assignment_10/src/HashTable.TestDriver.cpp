@@ -13,67 +13,6 @@ using namespace std;
 #include "HashTable.h"
 #include "HashTable.h" // multiple include test
 
-
-// namespace std
-// {
-//     template<typename Key, typename Value> 
-//     struct hash<std::pair<Key, Value>>
-//     {
-//         typedef std::pair<Key, Value> argument_type;
-//         typedef std::size_t result_type;
-//         result_type operator()(argument_type const& p) const noexcept
-//         {
-//             result_type const h1 ( std::hash<Key>{}(p.first) );
-//             result_type const h2 ( std::hash<Value>{}(p.second) );
-//             return h1 ^ (h2 << 1); // or use boost::hash_combine (see Discussion)
-//         }
-//     };
-// };
-
-template <typename HT, typename Key, typename Value>
-void _testHTImpl (const char*, HT ht, const Key[], const Value[]);
-
-#define TEST_HT_IMPL(K, V, keys, values) \
-    _testHTImpl("HashTable<" #K ", " #V ">", \
-        make_hashtable<K,V>(std::hash<K>{}, 1), keys, values)
-
-template <typename K, typename V>
-std::ostream& operator<< (std::ostream& os, const std::pair<K, V> pair) {
-    return os << "{ " << pair.first << ", " << " }";
-}
-
-int main () {
-    std::cout << "Programmer: Seiji Emery\n";
-    std::cout << "Programmer ID: M00202623\n";
-    std::cout << "File: " __FILE__ "\n";
-
-    const int ints[4]    = { 1, 2, 3, 4 };
-    const double doubles[4] = { -1.1, 0.0, 3.14159, 22.9 };
-    const char chars[4]   = { '@', 'Z', 'a', '$' };
-    const std::string strings[4] = { "foo", "bar", "baz", "borg" };
-    typedef std::pair<std::string, int> pair;
-    const pair pairs[4] = { { "lorp", 1 }, { "torg", 2 }, { "mal", -1 }, { "b", 10 } };
-
-    #define TEST_WITH_KEYS(K, keys) \
-        TEST_HT_IMPL(K, int, keys, ints); \
-        TEST_HT_IMPL(K, double, keys, doubles); \
-        TEST_HT_IMPL(K, char, keys, chars); \
-        TEST_HT_IMPL(K, std::string, keys, strings);
-        // TEST_HT_IMPL(K, pair, keys, pairs);
-
-    #define TEST_HT() \
-        TEST_WITH_KEYS(int, ints) \
-        TEST_WITH_KEYS(double, doubles) \
-        TEST_WITH_KEYS(char, chars) \
-        TEST_WITH_KEYS(std::string, strings)
-        // TEST_WITH_KEYS(pair, pairs)
-
-    TEST_HT()
-
-    std::cout << "\n\033[32mAll tests passed\n\033[0m";
-    return 0;
-}
-
 //
 // Minimalistic test 'framework' for comp220. Extremely simple, etc.
 //
@@ -398,120 +337,204 @@ void _testHTImpl (
             }
         }
     }
+    SECTION("Testing " << name) {
+        auto dict = hashtable.create(100, 0.8);
+        SECTION("Should initially be empty") {
+            ASSERT_EQ(dict.size(), 0);
+            ASSERT_EQ(bool(dict), false);
+            ASSERT_EQ(dict.begin(), dict.end());
+        }
+        SECTION("Test insertion") {
+            dict[keys[0]] = values[0];
+            ASSERT_EQ(dict[keys[0]], values[0]);
+            ASSERT_EQ(dict.size(), 1);
+            ASSERT_EQ(bool(dict), true);
 
-    // SECTION("Testing " << name) {
-    //     auto dict = hashtable.create(10, 0.8);
-    //     SECTION("Should initially be empty") {
-    //         ASSERT_EQ(dict.size(), 0);
-    //         ASSERT_EQ(bool(dict), false);
-    //     }
-    //     SECTION("Test insertion") {
-    //         dict[keys[0]] = values[0];
-    //         ASSERT_EQ(dict[keys[0]], values[0]);
-    //         ASSERT_EQ(dict.size(), 1);
-    //         ASSERT_EQ(bool(dict), true);
+            auto it = dict.begin();
+            ASSERT_NE(it, dict.end());
+            ASSERT_EQ(it->first, keys[0]);
+            ASSERT_EQ(it->second, values[0]);
+            ++it;
+            ASSERT_NE(it, dict.end());
 
-    //         dict[keys[1]] = values[1];
-    //         ASSERT_EQ(dict[keys[1]], values[1]);
-    //         ASSERT_EQ(dict.size(), 2);
-    //     }
-    //     SECTION("Test duplicate insertion") {
-    //         dict[keys[0]] = values[1];
-    //         ASSERT_EQ(dict[keys[0]], values[1]);
-    //         ASSERT_EQ(dict.size(), 2);
-    //     }
-    //     SECTION("Test key checking") {
-    //         ASSERT_EQ(dict.containsKey(keys[0]), true);
-    //         ASSERT_EQ(dict.containsKey(keys[0]), true);
-    //         ASSERT_EQ(dict.containsKey(keys[1]), true);
-    //         ASSERT_EQ(dict.containsKey(keys[2]), false);
-    //         ASSERT_EQ(dict.containsKey(keys[2]), false);
-    //         ASSERT_EQ(dict.size(), 2);
-    //     }
-    //     SECTION("Test key removal") {
-    //         dict.deleteKey(keys[0]);
-    //         ASSERT_EQ(dict.size(), 1);
-    //         ASSERT_EQ(dict.containsKey(keys[0]), false);
-    //     }
-    //     SECTION("Test removal of nonexistant key") {
-    //         dict.deleteKey(keys[0]);
-    //         ASSERT_EQ(dict.size(), 1);
-    //         ASSERT_EQ(dict.containsKey(keys[0]), false);
-    //     }
-    //     SECTION("Test many-insert") {
-    //         dict.insert({
-    //             { keys[0], values[1] },
-    //             { keys[0], values[0] },
-    //             { keys[1], values[2] },
-    //             { keys[2], values[2] },
-    //             { keys[3], values[3] },
-    //         });
-    //         ASSERT_EQ(dict.size(), 4);
-    //         ASSERT_EQ(dict[keys[0]], values[0]);
-    //         ASSERT_EQ(dict[keys[1]], values[2]);
-    //         ASSERT_EQ(dict[keys[2]], values[2]);
-    //         ASSERT_EQ(dict[keys[3]], values[3]);
-    //     }
-    //     SECTION("Test copy-construction") {
-    //         AA second { dict };
-    //         ASSERT_EQ(second.size(), 4);
-    //         ASSERT_EQ(second[keys[0]], values[0]);
-    //         ASSERT_EQ(second[keys[1]], values[2]);
-    //         ASSERT_EQ(second[keys[2]], values[2]);
-    //         ASSERT_EQ(second[keys[3]], values[3]);
+            dict[keys[1]] = values[1];
+            ASSERT_EQ(dict[keys[1]], values[1]);
+            ASSERT_EQ(dict.size(), 2);
 
-    //         SECTION("Copy modification should not affect original") {
-    //             second[keys[0]] = values[3];
-    //             ASSERT_EQ(second[keys[0]], values[3]);
-    //             ASSERT_EQ(dict[keys[0]], values[0]);
+            it = dict.begin();
+            ASSERT_NE(it, dict.end());
+            ASSERT_EQ(it->first, keys[0]);
+            ASSERT_EQ(it->second, values[0]);
+            ++it;
+            ASSERT_NE(it, dict.end());
+            ASSERT_EQ(it->first, keys[1]);
+            ASSERT_EQ(it->second, values[1]);
+            ++it;
+            ASSERT_EQ(it, dict.end());
+        }
+        SECTION("Test duplicate insertion") {
+            dict[keys[0]] = values[1];
+            ASSERT_EQ(dict[keys[0]], values[1]);
+            ASSERT_EQ(dict.size(), 2);
+        }
+        SECTION("Test key checking") {
+            ASSERT_EQ(dict.containsKey(keys[0]), true);
+            ASSERT_EQ(dict.containsKey(keys[0]), true);
+            ASSERT_EQ(dict.containsKey(keys[1]), true);
+            ASSERT_EQ(dict.containsKey(keys[2]), false);
+            ASSERT_EQ(dict.containsKey(keys[2]), false);
+            ASSERT_EQ(dict.size(), 2);
+        }
+        SECTION("Test key find") {
+            ASSERT_NE(dict.find(keys[0]), dict.end());
+            ASSERT_EQ(dict.find(keys[0])->second, values[1]);
+            ASSERT_NE(dict.find(keys[1]), dict.end());
+            ASSERT_EQ(dict.find(keys[1])->second, values[1]);
+            ASSERT_EQ(dict.find(keys[2]), dict.end());
 
-    //             second.deleteKey(keys[0]);
-    //             second.deleteKey(keys[1]);
-    //             ASSERT_EQ(second.size(), 2);
-    //             ASSERT_EQ(dict.size(), 4);
-    //         }
-    //     }
-    //     SECTION("Test assignment") {
-    //         AA second;
-    //         ASSERT_EQ(second.size(), 0);
+            dict.find(keys[0])->second = values[3];
+            ASSERT_EQ(dict[keys[0]], values[3]);
+        }
+        SECTION("Test key removal") {
+            dict.deleteKey(keys[0]);
+            ASSERT_EQ(dict.size(), 1);
+            ASSERT_EQ(dict.containsKey(keys[0]), false);
 
-    //         second = dict;
-    //         ASSERT_EQ(second.size(), 4);
-    //         ASSERT_EQ(second[keys[0]], values[0]);
-    //         ASSERT_EQ(second[keys[1]], values[2]);
-    //         ASSERT_EQ(second[keys[2]], values[2]);
-    //         ASSERT_EQ(second[keys[3]], values[3]);
+            auto it = dict.begin();
+            ASSERT_NE(it, dict.end());
+            ASSERT_EQ(it->first, keys[1]);
+            ++it;
+            ASSERT_EQ(it, dict.end());
+        }
+        SECTION("Test removal of nonexistant key") {
+            dict.deleteKey(keys[0]);
+            ASSERT_EQ(dict.size(), 1);
+            ASSERT_EQ(dict.containsKey(keys[0]), false);
+        }
+        SECTION("Test many-insert") {
+            dict.insert({
+                { keys[0], values[1] },
+                { keys[0], values[0] },
+                { keys[1], values[2] },
+                { keys[2], values[2] },
+                { keys[3], values[3] },
+            });
+            ASSERT_EQ(dict.size(), 4);
+            ASSERT_EQ(dict[keys[0]], values[0]);
+            ASSERT_EQ(dict[keys[1]], values[2]);
+            ASSERT_EQ(dict[keys[2]], values[2]);
+            ASSERT_EQ(dict[keys[3]], values[3]);
+        }
+        SECTION("Test resize") {
+            dict.resize(10);
+            ASSERT_EQ(dict.size(), 4);
+            ASSERT_EQ(dict[keys[0]], values[0]);
+            ASSERT_EQ(dict[keys[1]], values[2]);
+            ASSERT_EQ(dict[keys[2]], values[2]);
+            ASSERT_EQ(dict[keys[3]], values[3]);
+        }
+        SECTION("Test copy-construction") {
+            decltype(dict) second { dict };
+            ASSERT_EQ(second.size(), 4);
+            ASSERT_EQ(second[keys[0]], values[0]);
+            ASSERT_EQ(second[keys[1]], values[2]);
+            ASSERT_EQ(second[keys[2]], values[2]);
+            ASSERT_EQ(second[keys[3]], values[3]);
 
-    //         SECTION("Copy modification should not affect original") {
-    //             second[keys[0]] = values[3];
-    //             ASSERT_EQ(second[keys[0]], values[3]);
-    //             ASSERT_EQ(dict[keys[0]], values[0]);
+            SECTION("Copy modification should not affect original") {
+                second[keys[0]] = values[3];
+                ASSERT_EQ(second[keys[0]], values[3]);
+                ASSERT_EQ(dict[keys[0]], values[0]);
 
-    //             second.deleteKey(keys[0]);
-    //             second.deleteKey(keys[1]);
-    //             ASSERT_EQ(second.size(), 2);
-    //             ASSERT_EQ(dict.size(), 4);
-    //         }
-    //     }
-    //     SECTION("Test clear()") {
-    //         dict.clear();
-    //         ASSERT_EQ(dict.size(), 0);
-    //         ASSERT_EQ(dict.containsKey(keys[0]), false);
-    //         ASSERT_EQ(dict[keys[0]], Value());
-    //         dict.clear();
-    //     }
-    //     SECTION("hasKey() on empty value should not insert") {
-    //         ASSERT_EQ(dict.containsKey(keys[0]), false);
-    //         ASSERT_EQ(dict.size(), 0);
-    //     }
-    //     SECTION("const operator[] on empty value should not insert") {
-    //         const AA& constref = dict;
-    //         ASSERT_EQ(constref[keys[0]], Value());
-    //         ASSERT_EQ(constref.size(), 0);
-    //     }
-    //     SECTION("non-const operator[] should insert") {
-    //         ASSERT_EQ(dict[keys[0]], Value());
-    //         ASSERT_EQ(dict.size(), 1);
-    //     }
-    // }
+                second.deleteKey(keys[0]);
+                second.deleteKey(keys[1]);
+                ASSERT_EQ(second.size(), 2);
+                ASSERT_EQ(dict.size(), 4);
+            }
+        }
+        SECTION("Test assignment") {
+            auto second = dict.create(1);
+            ASSERT_EQ(second.size(), 0);
+
+            second = dict;
+            ASSERT_EQ(second.size(), 4);
+            ASSERT_EQ(second[keys[0]], values[0]);
+            ASSERT_EQ(second[keys[1]], values[2]);
+            ASSERT_EQ(second[keys[2]], values[2]);
+            ASSERT_EQ(second[keys[3]], values[3]);
+
+            SECTION("Copy modification should not affect original") {
+                second[keys[0]] = values[3];
+                ASSERT_EQ(second[keys[0]], values[3]);
+                ASSERT_EQ(dict[keys[0]], values[0]);
+
+                second.deleteKey(keys[0]);
+                second.deleteKey(keys[1]);
+                ASSERT_EQ(second.size(), 2);
+                ASSERT_EQ(dict.size(), 4);
+            }
+        }
+        SECTION("Test clear()") {
+            dict.clear();
+            ASSERT_EQ(dict.size(), 0);
+            ASSERT_EQ(dict.containsKey(keys[0]), false);
+            ASSERT_EQ(dict[keys[0]], Value());
+            dict.clear();
+        }
+        SECTION("hasKey() on empty value should not insert") {
+            ASSERT_EQ(dict.containsKey(keys[0]), false);
+            ASSERT_EQ(dict.size(), 0);
+        }
+        SECTION("const operator[] on empty value should not insert") {
+            const auto& constref = dict;
+            ASSERT_EQ(constref[keys[0]], Value());
+            ASSERT_EQ(constref.size(), 0);
+        }
+        SECTION("non-const operator[] should insert") {
+            ASSERT_EQ(dict[keys[0]], Value());
+            ASSERT_EQ(dict.size(), 1);
+        }
+    }
+}
+
+#define TEST_HT_IMPL(K, V, keys, values) \
+    _testHTImpl("HashTable<" #K ", " #V ">", \
+        make_hashtable<K,V>(std::hash<K>{}, 1), keys, values)
+
+template <typename K, typename V>
+std::ostream& operator<< (std::ostream& os, const std::pair<K, V> pair) {
+    return os << "{ " << pair.first << ", " << " }";
+}
+
+int main () {
+    std::cout << "Programmer: Seiji Emery\n";
+    std::cout << "Programmer ID: M00202623\n";
+    std::cout << "File: " __FILE__ "\n";
+
+    const int ints[4]    = { 1, 2, 3, 4 };
+    const double doubles[4] = { -1.1, 0.0, 3.14159, 22.9 };
+    const char chars[4]   = { '@', 'Z', 'a', '$' };
+    const std::string strings[4] = { "foo", "bar", "baz", "borg" };
+    typedef std::pair<std::string, int> pair;
+    const pair pairs[4] = { { "lorp", 1 }, { "torg", 2 }, { "mal", -1 }, { "b", 10 } };
+
+    #define TEST_WITH_KEYS(K, keys) \
+        TEST_HT_IMPL(K, int, keys, ints); \
+        TEST_HT_IMPL(K, double, keys, doubles); \
+        TEST_HT_IMPL(K, char, keys, chars); \
+        TEST_HT_IMPL(K, std::string, keys, strings);
+        // TEST_HT_IMPL(K, pair, keys, pairs);
+
+    #define TEST_HT() \
+        TEST_WITH_KEYS(int, ints) \
+        TEST_WITH_KEYS(double, doubles) \
+        TEST_WITH_KEYS(char, chars) \
+        TEST_WITH_KEYS(std::string, strings)
+        // TEST_WITH_KEYS(pair, pairs)
+
+    SECTION("All tests") {
+        TEST_HT()
+    }
+    std::cout << "\n\033[32mAll tests passed\n\033[0m";
+    return 0;
 }

@@ -301,6 +301,8 @@ public:
     ~HashTable () {}
 
     size_t size () const { return count; }
+    operator bool () const { return size() != 0; }
+
     void resize (size_t size) {
         info() << "Resizing " << storage.size() << " => " << size << " (has " << count << " elements)";
         assert((size > count) && "Not enough capacity to hold all data elements!");
@@ -386,6 +388,9 @@ public:
             insert(*begin);
         }
     }
+    void insert (const std::initializer_list<KeyValue>& kvs) {
+        insert(kvs.begin(), kvs.end());
+    }
 
     typedef typename Storage::iterator iterator;
     typedef typename Storage::const_iterator const_iterator;
@@ -414,7 +419,7 @@ public:
 template <typename Key, typename Value, typename HashFunction>
 auto make_hashtable (HashFunction hashFunction, size_t size = 0) -> HashTable<Key,Value,HashFunction> {
     return { hashFunction, size };
-}
+} 
 
 
 
