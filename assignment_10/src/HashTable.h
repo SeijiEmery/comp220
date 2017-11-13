@@ -61,6 +61,7 @@ private:
         size_t* data = nullptr;
 
         Bitset () {}
+        Bitset (size_t* data, size_t size) { assign(data, size); }
         Bitset (const Bitset& other) = delete;
         Bitset& operator= (const Bitset& other) = delete;
         Bitset (Bitset&& other) { *this = std::move(other); }
@@ -91,189 +92,229 @@ private:
             return os;
         }
     };
+    class Storage {
+        size_t      capacity;
+        uint8_t*    data;
+        Bitset      bitset;
+        KeyValue*   elements;
+    public:
+        Storage (size_t capacity)
+            : capacity(capacity)
+            , data(new uint8_t[ Bitset::allocationSize(capacity) + capacity * sizeof(KeyValue) ])
+            , bitset(reinterpret_cast<size_t*>(data), Bitset::allocationSize(capacity))
+            , elements(reinterpret_cast<KeyValue*>(&data[Bitset::allocationSize(capacity) * sizeof(size_t)]))
+        {}
+        Storage (const Storage& other) = delete;
+        Storage& operator= (const Storage& other) = delete;
+        Storage (Storage&& other) { *this = std::move(other); }
+        Storage& operator= (Storage&& other) {
+            std::swap(capacity, other.capacity);
+            std::swap(data, other.data);
+            std::swap(bitset, other.bitset);
+            std::swap(elements, other.elements);
+            return *this;
+        }
+        ~Storage () {
+            for (size_t i = 0; i < size(); ++i) {
+                maybeDelete(i);
+            }
+            delete[] data;
+        }
+        friend std::ostream& operator<< (std::ostream& os, const Storage& self) {
+            return os << "capacity = " << self.size() << ", bitset " << self.bitset;
+        }
+        size_t size () const { return capacity; }
+        void clear () { bitset.clear(); }
+
+        bool contains (size_t index) const { return bitset.get(index); }
+        bool maybeInsert (size_t index, const Key& key) {
+            if (!contains(index)) {
+                bitset.set(index);
+                elements[index] = { key, {} };
+                return true;
+            }
+            return false;
+        }
+        bool maybeInsert (size_t index, const KeyValue& kv) {
+            if (!contains(index)) {
+                bitset.set(index);
+                elements[index] = kv;
+                return true;
+            }
+            return false;
+        }
+        bool maybeDelete (size_t index) {
+            if (contains(index)) {
+                bitset.clear(index);
+                elements[index].~KeyValue();
+                return true;
+            }
+            return false;
+        }
+
+        KeyValue& operator[] (size_t index) { return elements[index]; }
+        const KeyValue& operator[] (size_t index) const { return elements[index]; }
+
+        template <typename F>
+        void each (F f) {
+            for (size_t i = 0; i < size(); ++i) {
+                f(i, bitset.get(i), elements[i]);
+            }
+        }
+
+        template <typename V>
+        class Iterator {
+            friend class Storage;
+            Storage*    storage;
+            size_t      index;
+
+            void advance () { while(index < storage->size() && !storage->bitset.get(index)) ++index; }
+            Iterator (Storage* storage, size_t index) : storage(storage), index(index) { advance(); }
+        public:
+            Iterator (const Iterator& other) = default;
+            Iterator& operator= (const Iterator& other) = default;
+
+            bool operator== (const Iterator<V>& other) const { return storage == other.storage && index == other.index; }
+            bool operator!= (const Iterator<V>& other) const { return storage != other.storage || index != other.index; }
+            Iterator& operator++ () { if (index < storage->size()) { ++index; advance(); } return *this; }
+            V& operator*  () const { return storage->elements[index]; }
+            V& operator-> () const { return storage->elements[index]; }
+
+        };
+        typedef Iterator<KeyValue>       iterator;
+        typedef Iterator<const KeyValue> const_iterator;
+
+        iterator       make_iterator (size_t index) { return { this, index }; }
+        const_iterator make_iterator (size_t index) const { return { const_cast<Storage*>(this), index }; }
+
+        iterator       begin () { return { this, 0 }; }
+        iterator       end   () { return { this, size() }; }
+        const_iterator begin () const { return { const_cast<Storage*>(this), 0 }; }
+        const_iterator end   () const { return { const_cast<Storage*>(this), size() }; }
+    };
 
     HashFunction hashFunction;
-    size_t      capacity = 0;           // # max key / value pairs
-    size_t      capacityThreshold = 0;  // 
-    size_t      count = 0;              // # non-empty key / value pairs
-    size_t*     data = nullptr;         // owning pointer for all data elements
-    Bitset      bitset;                 // points into data
-    KeyValue*   elements = nullptr;     // points into data
+    Storage      storage;
+    size_t       capacityThreshold;
+    size_t       count = 0;
 
     const char* color;
     LineWriter info () const { return writeln(std::cout, color); }
 public:
     friend std::ostream& operator<< (std::ostream& os, const This& self) {
-        return os << "HashTable { capacity = " << self.capacity 
-            << ", size = " << self.count 
-            << ", bitset = " << self.bitset << " }"; 
+        return os << "HashTable { size = " << self.size() << ", " << self.storage << " }";
     }
-
-
     HashTable () = delete;
-    HashTable (HashFunction hashFunction, size_t capacity = 0)
+    HashTable (HashFunction hashFunction, size_t capacity = 0, double threshold = 0.8)
         : hashFunction(hashFunction)
-        , capacity(capacity = capacity ? capacity : 128)
-        , capacityThreshold((size_t)(capacity * 0.75))
+        , storage(capacity)
+        , capacityThreshold((size_t)(capacity * threshold))
+        , color(getCyclingColor())
+    {}
+    HashTable (const This& other)
+        : hashFunction(other.hashFunction)
+        , storage(other.capacity)
+        , capacityThreshold(other.capacityThreshold)
         , color(getCyclingColor())
     {
-        info() << "Allocated " << capacity;
-        assert(capacity != 0);
-        size_t bitsetSize = Bitset::allocationSize(capacity);
-        size_t elementSize = (sizeof(KeyValue) * capacity + sizeof(size_t) - 1) / sizeof(size_t);
-
-        info() << "bitset size: " << bitsetSize;
-        info() << "element size: " << elementSize 
-            << " (" << capacity << " * " << sizeof(KeyValue) << " / " << sizeof(size_t) << ")";
-
-        data = new size_t[bitsetSize + elementSize];
-        info() << "allocated pointer " << data << ", capacity " << capacity 
-               << ", " << (bitsetSize + elementSize) * sizeof(size_t) << " bytes";
-        data[bitsetSize + elementSize - 1] = 0;
-
-        bitset.assign(data, bitsetSize);
-        elements = reinterpret_cast<KeyValue*>(&data[bitsetSize]);
-        info() << "data ptr " << data;
-        info() << "elem ptr " << elements;
-        info() << "back ptr " << &elements[capacity];
-
-        info() << "elements offset: " << reinterpret_cast<size_t>(elements) - reinterpret_cast<size_t>(data);
-        info() << "back offset: " << reinterpret_cast<size_t>(&elements[capacity-1]) - reinterpret_cast<size_t>(data);
-        elements[capacity-1] = {};
+        insert(other.begin(), other.end());
+        return *this;
     }
-    HashTable (const This& other) 
-        : HashTable(other.hashFunction, other.capacity)
-    { 
-        info() << "COPY CTOR: copying " << other.count << " elements"; 
-        assert(data != nullptr);
-        insert(other.begin(), other.end()); 
-    }
-    This& operator= (const This& other) { 
-        info() << "COPY ASSIGNMENT";
-        HashTable temp(other); 
-        std::swap(*this, temp); 
-        return *this; 
-    }
-    HashTable (This&& other)
-        : HashTable(other.hashFunction, other.capacity)
-    { 
-        info() << "MOVE CTOR: swapping " << other.data << ", " << data << " (capacity " << other.capacity << ", count " << other.count << ")";
-        assert(data != nullptr);
-        *this = std::move(other); 
+    This& operator= (const This& other) {
+        clear();
+        insert(other.begin(), other.end());
     }
     This& operator= (This&& other) {
-        info() << "MOVE ASSIGNMENT";
-        info() << "Swapping " << capacity;
-        other.info() << "with " << other.capacity;
-
         std::swap(hashFunction, other.hashFunction);
-        std::swap(capacity, other.capacity);
+        std::swap(storage, other.storage);
         std::swap(capacityThreshold, other.capacityThreshold);
         std::swap(count, other.count);
-        std::swap(data, other.data);
-        std::swap(bitset, other.bitset);
-        std::swap(elements, other.elements);
         std::swap(color, other.color);
         return *this;
     }
-    ~HashTable () { 
-        info() << "freeing pointer " << data << ", capacity " << capacity;
-        assert(data != nullptr);
-        // info() << "Destructing " << capacity;
-        info() << "calling destructor(s) (size " << count << ")";
-        clear();
-        delete[] data;
-    }
+
+    HashTable (This&& other)
+        : hashFunction(std::move(other.hashFunction))
+        , storage(std::move(other.storage))
+        , capacityThreshold(other.capacityThreshold)
+        , color(getCyclingColor())
+    {}
+    ~HashTable () {}
 
     size_t size () const { return count; }
     void resize (size_t size) {
-        info() << "Resizing " << capacity << " => " << size << " (has " << count << " elements)";
+        info() << "Resizing " << storage.size() << " => " << size << " (has " << count << " elements)";
         assert((size > count) && "Not enough capacity to hold all data elements!");
         HashTable temp(hashFunction, size);
         temp.insert(begin(), end());
         *this = std::move(temp);
     }
     void debugMemLayout () {
-        for (size_t i = 0; i < capacity; ++i) {
-            if (bitset.get(i)) {
-                info() << "    " << i << ": " << elements[i].first << " => " << elements[i].second;
+        storage.each([&](size_t i, bool set, const KeyValue& kv) {
+            if (set) {
+                info() << "    " << i << ": " << kv.first << " => " << kv.second;
             } else {
                 info() << "    " << i << ": --";
             }
-        }
+        });
     }
     // Reinsert all elements
     void reinsert () { 
-        resize(capacity); 
+        resize(storage.capacity()); 
     }
     // Clear all elements
     void clear () {
         if (count != 0) {
-            info() << "Clearing " << capacity;
-
-            // Fire destructors on all non-empty elements
-            for (auto& kv : *this) {
-                kv.first.~Key();
-                kv.second.~Value();
-            }
-            // Clear size + usage bitmask
+            info() << "Clearing " << storage.size();
             count = 0;
-            bitset.clear();
+            storage.clear();
         } else {
-            info() << "Already cleared " << capacity;
+            info() << "Already cleared " << storage.size();
         }
     }
 private:
     size_t locate (const Key& key) const {
-        size_t hash = hashFunction(key) % capacity; size_t iterations = 0;
-        while (bitset.get(hash) && elements[hash].first != key) {
-            hash = (hash + 1) % capacity;
-            ++iterations;
+        size_t hash = hashFunction(key) % storage.size(); size_t iterations = storage.size();
+        while (storage.contains(hash) && storage[hash].first != key) {
+            hash = (hash + 1) % storage.size();
+            assert(iterations --> 0 && "No storage remaining, cannot locate / insert element!");
         }
-        info() << "Found hash for key " << key << ": " << hash << ", distance " << iterations << " (capacity " << capacity << ")";
+        info() << "Found hash for key " << key << ": " << hash << ", distance " << iterations << ")";
         return hash;
     }
 public:
     const Value& operator[] (const Key& key) const {
-        return elements[locate(key)].second;
+        return storage[locate(key)].second;
     }
     Value& operator[] (const Key& key) {
         auto index = locate(key);
-        if (!bitset.get(index)) {
-            info() << "inserting " << key << " at " << index << " into " << elements;
-            ++count;
-            bitset.set(index);
-            elements[index] = { key, {} };
-            if (count > capacityThreshold) {
-                info() << "Capacity exceeded: " << count << " > " << capacityThreshold;
-                resize(capacity * 2);
+        if (storage.maybeInsert(index, key)) {
+            info() << "Inserted " << key << " at " << index;
+            if (++count > capacityThreshold) {
+                info() << "Capacity exceeded, resizing: " << count << " > " << capacityThreshold;
+                resize(storage.size() * 2);
             }
         }
-        return elements[index].second;
+        return storage[index].second;
     }
     void insert (const KeyValue& kv) {
         auto index = locate(kv.first);
-        elements[index] = kv;
-        if (!bitset.get(index)) {
-            info() << "inserting " << kv.first << " at " << index << " into " << elements;
-            ++count;
-            bitset.set(index);
-            if (count > capacityThreshold) {
-                info() << "Capacity exceeded: " << count << " > " << capacityThreshold;
-                resize(capacity * 2);
+        if (storage.maybeInsert(index, kv)) {
+            info() << "inserted " << kv.first << ", " << kv.second << " at " << index;
+            if (++count > capacityThreshold) {
+                info() << "Capacity exceeded, resizing: " << count << " > " << capacityThreshold;
+                resize(storage.size() * 2);
             }
         }
     }
     bool containsKey (const Key& key) {
-        return bitset.get(locate(key));
+        return storage.contains(locate(key));
     }
     void deleteKey (const Key& key) {
         auto index = locate(key);
-        if (bitset.get(index)) {
-            info() << "deleting " << key << " at " << index << " from " << elements;
+        if (storage.maybeDelete(index)) {
+            info() << "deleted " << key << " at " << index;
             --count;
-            bitset.clear(index);
-            elements[index].~KeyValue();
         }
     }
     void insert (const Key& key, const Value& value) {
@@ -286,73 +327,26 @@ public:
             insert(*begin);
         }
     }
-private:
-    template <typename T>
-    class Iterator {
-        friend class HashTable;
-        HashTable<Key,Value,HashFunction>& hashtable;
-        size_t  index = 0;
 
-        LineWriter info () const { return hashtable.info(); }
+    typedef typename Storage::iterator iterator;
+    typedef typename Storage::const_iterator const_iterator;
 
-        Iterator (decltype(hashtable)& hashtable, size_t index = 0)
-            : hashtable(hashtable), index(index) 
-        {
-            info() << "Constructed iterator: " << index;
-        }
-        void advanceToNextNonEmptyElement () {
-            auto start = index;
-            while (index < hashtable.capacity && !hashtable.bitset.get(index)) {
-                ++index;
-            }
-            if (start != index) {
-                info() << "Advanced index " << start << " => " << index;
-            }
-        }
+    iterator begin () { return storage.begin(); }
+    iterator end   () { return storage.end();   }
+    const_iterator begin () const { return storage.begin(); }
+    const_iterator end   () const { return storage.end();   }
 
-    public:
-        Iterator (const Iterator<T>& other) : hashtable(other.hashtable), index(other.index) {
-            info() << "Copying iterator";
-            advanceToNextNonEmptyElement();
-        }
-        Iterator& operator= (const Iterator<T>& other) { hashtable = other.hashtable; index = other.index; return *this; }
-        operator bool () const { return index < hashtable.capacity; }
-
-        template <typename T2> bool operator== (const Iterator<T2>& other) const { return &hashtable == &(other.hashtable) && index == other.index; } 
-        template <typename T2> bool operator!= (const Iterator<T2>& other) const { return &hashtable != &(other.hashtable) || index != other.index; }
-
-        Iterator<T>& operator++ () {
-            if (index < hashtable.capacity) {
-                ++index;
-                advanceToNextNonEmptyElement();
-            } else {
-                info() << "Hit end: " << index;
-            }
-            return *this; 
-        }
-        T& operator*  () const { info() << "Fetching value at index " << index << ": " << hashtable.elements[index].first << ", " << hashtable.elements[index].second; return hashtable.elements[index]; }
-        T* operator-> () const { info() << "Fetching value at index " << index << ": " << hashtable.elements[index].first << ", " << hashtable.elements[index].second; return hashtable.elements[index]; }
-    };
-public:
-    typedef Iterator<KeyValue> iterator;
-    typedef Iterator<const KeyValue> const_iterator;
-
-    iterator begin () { info() << "begin()"; return iterator(*this, 0); }
-    iterator end   () { info() << "end()"; return iterator(*this, capacity); }
-    const_iterator begin () const { info() << "cbegin()"; return const_iterator(const_cast<This&>(*this), 0); }
-    const_iterator end   () const { info() << "cend()";   return const_iterator(const_cast<This&>(*this), capacity); }
-
-    iterator find (const Key& key) {
+    iterator find (const Key& key) { 
         auto index = locate(key);
-        return bitset.get(index) ?
-            iterator(*this, index) :
-            end();
+        return storage.contains(index) ?
+            storage.make_iterator(index) :
+            storage.end();
     }
     const_iterator find (const Key& key) const {
         auto index = locate(key);
-        return bitset.get(index) ?
-            const_iterator(*this, index) :
-            end();
+        return storage.contains(index) ?
+            storage.make_iterator(index) :
+            storage.end();
     }
 };
 
