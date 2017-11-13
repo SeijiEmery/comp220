@@ -1,3 +1,15 @@
+// Programmer: Seiji Emery
+// Programmer ID: M00202623
+//
+// TestKV.cpp
+// Implements a set of interactive tests for AssociativeArray by implementing
+// an interactive REPL w/ a simple regex-based DSL for manipulating a single
+// AssociativeArray<string, string>.
+//
+// Remote source:
+// https://github.com/SeijiEmery/comp220/tree/master/assignment_09/src/KVTest.hpp
+//
+
 
 #include <iostream>     // std::cout, std::cin
 #include <sstream>      // std::stringstream

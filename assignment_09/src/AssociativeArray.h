@@ -1,3 +1,13 @@
+// Programmer: Seiji Emery
+// Programmer ID: M00202623
+//
+// AssociativeArray.h
+// Implements a simple O(N) associative array as a DynamicArray<std::pair<K, V>>,
+// with all the expected operations for a dictionary type.
+//
+// Remote source:
+// https://github.com/SeijiEmery/comp220/tree/master/assignment_09/src/AssociativeArray.hpp
+//
 
 #ifndef AssociativeArray_h
 #define AssociativeArray_h
