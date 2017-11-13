@@ -169,10 +169,11 @@ void _testHTImpl (
     const Value values[]
 ) {
     SECTION("Testing " << name << "::Storage") {
-        size_t N = 10;
-        auto storage = hashtable.make_storage(N);
+        auto storage = hashtable.make_storage(10);
 
         SECTION("test initial values") {
+            ASSERT_EQ(storage.size(), 10);
+
             SECTION("by iterative inspection") {
                 size_t numSetValues = 0;
                 for (size_t i = storage.size(); i --> 0; ) {
@@ -281,9 +282,121 @@ void _testHTImpl (
             }
         }
         SECTION("test swap") {
+            auto s2 = hashtable.make_storage(20);
 
+            SECTION("setup second storage element") {
+                ASSERT_EQ(s2.size(), 20);
+
+                ASSERT_EQ(s2.maybeInsert(1, keys[4]), true);
+                ASSERT_EQ(s2.contains(1), true);
+                ASSERT_EQ(s2.contains(3), false);
+                ASSERT_EQ(s2.contains(4), false);
+            }
+            SECTION("after swap") {
+                storage.swap(s2);
+
+                ASSERT_EQ(s2.size(), 10);
+                ASSERT_EQ(s2.contains(1), false);
+                ASSERT_EQ(s2.contains(3), true);
+                ASSERT_EQ(s2.contains(4), true);
+
+                ASSERT_EQ(storage.size(), 20);
+                ASSERT_EQ(storage.contains(1), true);
+                ASSERT_EQ(storage.contains(3), false);
+                ASSERT_EQ(storage.contains(4), false);
+            }
+            SECTION("after second swap") {
+                storage.swap(s2);
+
+                ASSERT_EQ(storage.size(), 10);
+                ASSERT_EQ(storage.contains(1), false);
+                ASSERT_EQ(storage.contains(3), true);
+                ASSERT_EQ(storage.contains(4), true);
+
+                ASSERT_EQ(s2.size(), 20);
+                ASSERT_EQ(s2.contains(1), true);
+                ASSERT_EQ(s2.contains(3), false);
+                ASSERT_EQ(s2.contains(4), false);
+            }
         }
+        SECTION("test maybeDelete") {
+            ASSERT_EQ(storage.contains(3), true);
+            ASSERT_EQ(storage.maybeDelete(3), true);
+            ASSERT_EQ(storage.maybeDelete(3), false);
+            ASSERT_EQ(storage.contains(3), false);
+        }
+        SECTION("test clear()") {
+            SECTION("insert new elements") {
+                ASSERT_EQ(storage.maybeInsert(5, keys[2]), true);
+                ASSERT_EQ(storage.maybeInsert(6, keys[3]), true);
+            }
+            SECTION("before clear") {
+                SECTION("check iterators") {
+                    ASSERT_NE(storage.begin(), storage.end());
+                    ASSERT_NE(storage.cbegin(), storage.cend());
+                }
+                SECTION("check elements set") {
+                    ASSERT_EQ(storage.contains(4), true);
+                    ASSERT_EQ(storage.contains(5), true);
+                    ASSERT_EQ(storage.contains(6), true);
+                }
+                SECTION("check count") {
+                    SECTION("using iterators") {
+                        size_t count = 0;
+                        for (const auto& kv : storage) {
+                            ++count;
+                        }
+                        ASSERT_EQ(count, 3);
+                    }
+                    SECTION("using iteration") {
+                        size_t count = 0;
+                        for (auto i = storage.size(); i --> 0; ) {
+                            if (storage.contains(i)) ++count;
+                        }
+                        ASSERT_EQ(count, 3);
+                    }
+                }
+            }
+            storage.clear();
 
+            SECTION("after clear") {
+                SECTION("check iterators") {
+                    ASSERT_EQ(storage.begin(), storage.end());
+                    ASSERT_EQ(storage.cbegin(), storage.cend());
+                }
+                SECTION("check elements not set") {
+                    ASSERT_EQ(storage.contains(4), false);
+                    ASSERT_EQ(storage.contains(5), false);
+                    ASSERT_EQ(storage.contains(6), false);
+                }
+                SECTION("check count") {
+                    SECTION("using iterators") {
+                        size_t count = 0;
+                        for (const auto& kv : storage) {
+                            ++count;
+                        }
+                        ASSERT_EQ(count, 0);
+                    }
+                    SECTION("using iteration") {
+                        size_t count = 0;
+                        for (auto i = storage.size(); i --> 0; ) {
+                            if (storage.contains(i)) ++count;
+                        }
+                        ASSERT_EQ(count, 0);
+                    }
+                }
+                SECTION("check cannot delete deleted elements") {
+                    ASSERT_EQ(storage.maybeDelete(4), false);
+                    ASSERT_EQ(storage.maybeDelete(5), false);
+                    ASSERT_EQ(storage.maybeDelete(6), false);
+                }
+                SECTION("check can reinsert elements") {
+                    ASSERT_EQ(storage.maybeInsert(4, keys[0]), true);
+                    ASSERT_EQ(storage.maybeInsert(5, keys[1]), true);
+                    ASSERT_EQ(storage.maybeInsert(6, keys[2]), true);
+                }
+            }
+        }
     }
 
     // SECTION("Testing " << name) {
