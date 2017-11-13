@@ -91,6 +91,25 @@ private:
             return os;
         }
     };
+
+    // Storage abstraction, manages memory for the HashTable type
+    // somewhat... complicated (probably more than it has to be), as I wanted the bitset + elements array to be in contiguous memory >.>
+    // Basically, this is a static (non-growing) sparse key-value array that the HashTable indexes into.
+    //
+    // fun features:
+    //  – memory is contiguous (ie. data array is referenced by both bitset + elements)
+    //  - only one allocation / free per storage instance
+    //  - custom (very manual) memory management; data layout is sparse (ie. not all elements have been initialized)
+    //  - lookup via contains()
+    //  - insertion via maybeInsert() – supports Key or KeyValue
+    //  - deletion  via maybeDelete()
+    //  - iterator impl that skips over empty values
+    //  - an additional, direct iteration algorithm (each()) that iterates over both; necessary
+    //    to implement some algorithms without exposing Storage internals
+    //  - class is neatly encapsulated w/ data hiding (including from the outer HashTable impl; can use the public inteface only)
+    //  - no default ctor; disabled copies
+    //  - does have a move ctor, since that was sorta necessary...
+    //
     class Storage {
         size_t      capacity;
         uint8_t*    data;
@@ -137,7 +156,8 @@ private:
         bool maybeInsert (size_t index, const Key& key) {
             if (!contains(index)) {
                 bitset.set(index);
-                elements[index] = { key, {} };
+                // call constructor -- necessary b/c this is unitialized memory and assignment alone does not work for all types
+                new (&elements[index]) KeyValue (key, {});
                 return true;
             }
             return false;
@@ -145,7 +165,8 @@ private:
         bool maybeInsert (size_t index, const KeyValue& kv) {
             if (!contains(index)) {
                 bitset.set(index);
-                elements[index] = kv;
+                // call constructor -- necessary b/c this is unitialized memory and assignment alone does not work for all types
+                new (&elements[index]) KeyValue(kv);
                 return true;
             }
             return false;
@@ -153,6 +174,9 @@ private:
         bool maybeDelete (size_t index) {
             if (contains(index)) {
                 bitset.clear(index);
+                // call destructor -- necessary b/c we're manually managing memory, and 
+                // have sparse value initialization (for uh, performance reasons >_<). 
+                // Slightly silly, but has been thoroughly tested and is guaranteed to work (I think...).
                 elements[index].~KeyValue();
                 return true;
             }
