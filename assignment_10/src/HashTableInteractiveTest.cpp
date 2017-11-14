@@ -83,7 +83,7 @@ template <typename It>
 class RSequence {
     It begin, end;
 public:
-    RSequence (It begin, It end) : begin(begin), end(end) { info() << "constructed sequence()"; }
+    RSequence (It begin, It end) : begin(begin), end(end) {}
     operator bool () const { return begin != end; }
     RSequence& operator++ () { return ++begin, *this; }
     auto operator* () const -> decltype(*begin) { return *begin; }
@@ -101,7 +101,7 @@ class RMap {
     F f;
     Range range;
 public:
-    RMap (F f, Range range) : f(f), range(range) { info() << "constructed map()"; }
+    RMap (F f, Range range) : f(f), range(range) {}
     operator bool () const { return bool(range); }
     RMap& operator++ () { return ++range, *this; }
     auto  operator*  () const -> decltype(f(*range)) { return f(*range); }
@@ -125,7 +125,7 @@ class RFilter {
 
     void advanceFilter () { while (range && !f(*range)) { ++range; } }
 public:
-    RFilter (F f, Range range) : f(f), range(range) { info() << "constructed filter()";  advanceFilter(); }
+    RFilter (F f, Range range) : f(f), range(range) {}
     operator bool () const { return bool(range); }
     RFilter& operator++ () { ++range; advanceFilter(); return *this; }
     auto operator* () const -> decltype(*range) { return *range; }
@@ -187,7 +187,7 @@ struct RTake {
     size_t count;
     Range range;
 public:
-    RTake (size_t count, Range range) : count(count), range(range) { info() << "constructed take()"; }
+    RTake (size_t count, Range range) : count(count), range(range) {}
     operator bool () const { return count > 0 && range; }
     RTake& operator++ () { ++range; --count; return *this; }
     auto operator* () const -> decltype(*range) { return *range; }
@@ -230,7 +230,10 @@ int main () {
             report() << array.size();
         })
         .caseOf("memlayout", [&](Match match) {
-            array.debugMemLayout();
+            array.each([&](size_t i, bool isSet, const std::pair<Key,Value>& kv) {
+                if (isSet) { report() << i << ": " << kv.first << " => " << kv.second; }
+                else       { report() << i << ": --"; }
+            });
         })
         .caseOf("fill {} {}", [&](Match match) {
             auto a = atoi(match[1].str().c_str());

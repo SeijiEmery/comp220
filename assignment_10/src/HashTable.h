@@ -325,6 +325,9 @@ public:
     operator bool () const { return size() != 0; }
 
     void resize (size_t size) {
+        if (size == 0) {
+            size = 1;
+        }
         while (size <= (size_t)(this->size() * loadFactor + 1)) {
             // info() << "size too small, growing " << size << " => " << (size * 2);
             size *= 2;
@@ -352,14 +355,9 @@ public:
 
         // info() << "finished resize (size = " << this->size() << ", capacity = " << storage.size() << ", capacityThreshold = " << capacityThreshold << ")";
     }
-    void debugMemLayout () {
-        storage.each([&](size_t i, bool set, const KeyValue& kv) {
-            if (set) {
-                info() << "    " << i << ": " << kv.first << " => " << kv.second;
-            } else {
-                info() << "    " << i << ": --";
-            }
-        });
+    template <typename Callback>
+    void each (Callback callback) {
+        storage.each(callback);
     }
     // Reinsert all elements
     void reinsert () {
