@@ -268,6 +268,8 @@ private:
     double       _loadFactor;
     size_t       capacityThreshold;
     size_t       count = 0;
+    size_t       numCollisions = 0;     // statistics: # collisions, and total distance traveled
+    size_t       collisionDist = 0;     // in collisions. updated by insert, delete, clear operations
 
     const char* color;
     LineWriter info () const { return writeln(std::cout, color); }
@@ -283,7 +285,10 @@ public:
     }
     This clone () { return *this; }
     friend std::ostream& operator<< (std::ostream& os, const This& self) {
-        return os << "HashTable { size = " << self.size() << ", " << self.storage << " }";
+        return os << "HashTable { size = " << self.size() 
+            << ", collision-rate " << (self.numCollisions ? ((double)self.numCollisions / (double)self.capacity()) : 0)
+            << ", collision-dist " << (self.numCollisions ? ((double)self.collisionDist / (double)self.numCollisions) : 0)
+            << ", " << self.storage << " }";
     }
 
     //
@@ -352,6 +357,8 @@ public:
 
         // clear count + reinsert
         count = 0;
+        numCollisions = 0;
+        collisionDist = 0;
         insert(temp.begin(), temp.end());
     }
     template <typename Callback>
@@ -367,14 +374,17 @@ public:
         if (count != 0) {
             // info() << "Clearing " << capacity();
             count = 0;
+            numCollisions = 0;
+            collisionDist = 0;
             storage.clear();
         } else {
             // info() << "Already cleared " << capacity();
         }
     }
 private:
-    size_t locate (const Key& key) const {
-        size_t hash = hashFunction(key) % capacity(); size_t iterations = 0;
+    size_t locate (const Key& key, size_t& iterations) const {
+        size_t hash = hashFunction(key) % capacity();
+        iterations = 0;
         while (storage.contains(hash) && storage[hash].first != key) {
             hash = (hash + 1) % capacity();
             if (++iterations >= capacity()) {
@@ -391,6 +401,9 @@ private:
         // info() << "Found hash for key " << key << ": " << hash << ", distance " << iterations << ")";
         return hash;
     }
+    size_t locate (const Key& key) const {
+        size_t _; return locate(key, _);
+    }
 public:
     const Value& operator[] (const Key& key) const {
         auto index = locate(key);
@@ -405,10 +418,15 @@ public:
         if (size() >= capacityThreshold) {
             resize(capacity() * 2);
         }
-        auto index = locate(key);
+        size_t collisions;
+        auto index = locate(key, collisions);
         assert(index < capacity());
         if (storage.maybeInsert(index, key)) {
             ++count;
+            if (collisions) {
+                numCollisions += 1;
+                collisionDist += collisions;
+            }
         }
         return storage[index].second;
     }
@@ -416,10 +434,15 @@ public:
         if (size() >= capacityThreshold) {
             resize(capacity() * 2);
         }
-        auto index = locate(kv.first);
+        size_t collisions;
+        auto index = locate(kv.first, collisions);
         assert(index < capacity());
         if (storage.maybeInsert(index, kv)) {
             ++count;
+            if (collisions) {
+                numCollisions += 1;
+                collisionDist += collisions;
+            }
         } else {
             storage[index] = kv;
         }
@@ -428,10 +451,14 @@ public:
         return storage.contains(locate(key));
     }
     void deleteKey (const Key& key) {
-        auto index = locate(key);
+        size_t collisions;
+        auto index = locate(key, collisions);
         if (storage.maybeDelete(index)) {
-            // info() << "deleted " << key << " at " << index;
             --count;
+            if (collisions) {
+                numCollisions -= 1;
+                collisionDist -= collisions;
+            }
         }
     }
     void insert (const Key& key, const Value& value) {

@@ -243,7 +243,7 @@ int main () {
                 else       { report() << i << ": --"; }
             });
         })
-        .caseOf("display", [&](Match match) {
+        .caseOf("display|info", [&](Match match) {
             report() << array;
         })
         .caseOf("fill {} {}", [&](Match match) {
