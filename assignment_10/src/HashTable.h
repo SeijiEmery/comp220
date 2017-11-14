@@ -245,7 +245,7 @@ private:
             V* operator-> () const { return &storage->elements[index]; }
 
             friend std::ostream& operator<< (std::ostream& os, const Iterator<V>& it) {
-                return os << "HashTable::Iterator {" << *it.storage << ", index " << it.index << " }";
+                return os << "HashTable::Iterator {" << (it.index >= it.storage->size() ? "valid " : "invalid ") << it.storage << " " << *it.storage << ", index " << it.index << " }";
             }
             operator Iterator<const V> () const { return { storage, index }; }
         };
@@ -326,15 +326,15 @@ public:
 
     void resize (size_t size) {
         while (size <= (size_t)(this->size() * loadFactor + 1)) {
-            info() << "size too small, growing " << size << " => " << (size * 2);
+            // info() << "size too small, growing " << size << " => " << (size * 2);
             size *= 2;
         }
         size_t newThreshold = (size_t)(size * loadFactor);
-        info() << "resizing " 
-            << storage.size() << ", max " << capacityThreshold
-            << " => "
-            << size << ", max " << newThreshold
-            << " (current usage " << this->size() << ")";
+        // info() << "resizing " 
+        //     << storage.size() << ", max " << capacityThreshold
+        //     << " => "
+        //     << size << ", max " << newThreshold
+        //     << " (current usage " << this->size() << ")";
 
         // info() << "resizing " << storage.size() << " => " << size << "(capacityThreshold = " << capacityThreshold << ")";
         capacityThreshold = newThreshold;
@@ -343,12 +343,12 @@ public:
         Storage temp { size };
         storage.swap(temp);
 
-        info() << "old storage: " << temp;
-        info() << "new storage: " << storage;
+        // info() << "old storage: " << temp;
+        // info() << "new storage: " << storage;
 
         insert(temp.begin(), temp.end());
 
-        info() << "after resize: " << storage;
+        // info() << "after resize: " << storage;
 
         // info() << "finished resize (size = " << this->size() << ", capacity = " << storage.size() << ", capacityThreshold = " << capacityThreshold << ")";
     }
@@ -362,8 +362,8 @@ public:
         });
     }
     // Reinsert all elements
-    void reinsert () { 
-        resize(storage.capacity()); 
+    void reinsert () {
+        resize(storage.size());
     }
     // Clear all elements
     void clear () {
@@ -372,7 +372,7 @@ public:
             count = 0;
             storage.clear();
         } else {
-            info() << "Already cleared " << storage.size();
+            // info() << "Already cleared " << storage.size();
         }
     }
 private:
@@ -381,12 +381,12 @@ private:
         while (storage.contains(hash) && storage[hash].first != key) {
             hash = (hash + 1) % storage.size();
             if (++iterations >= storage.size()) {
-                info() << storage;
-                info() << "WARNING: RECURSION LIMIT EXCEEEDED " 
-                    << "iterations = " << iterations
-                    << ", size = " << size()
-                    << ", capacity = " << storage.size()
-                    << ", max = " << capacityThreshold;
+                // info() << storage;
+                // info() << "WARNING: RECURSION LIMIT EXCEEEDED " 
+                //     << "iterations = " << iterations
+                //     << ", size = " << size()
+                //     << ", capacity = " << storage.size()
+                //     << ", max = " << capacityThreshold;
                 return storage.size();
             }
             // assert(iterations --> 0 && "No storage remaining, cannot locate / insert element!");
@@ -400,7 +400,8 @@ public:
         if (index < storage.size()) {
             return storage[index].second;
         } else {
-            return {};
+            const static Value v = {};
+            return v;
         }
     }
     Value& operator[] (const Key& key) {
@@ -422,6 +423,8 @@ public:
         assert(index < storage.size());
         if (storage.maybeInsert(index, kv)) {
             ++count;
+        } else {
+            storage[index] = kv;
         }
     }
     bool containsKey (const Key& key) {
@@ -441,6 +444,7 @@ public:
     void insert (It begin, It end) {
         // info() << "Inserting values";
         for (; begin != end; ++begin) {
+            // info() << "inserting " << begin->first << " = " << begin->second;
             insert(*begin);
         }
     }
