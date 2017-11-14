@@ -265,7 +265,7 @@ private:
 
     HashFunction hashFunction;
     Storage      storage;
-    double       loadFactor;
+    double       _loadFactor;
     size_t       capacityThreshold;
     size_t       count = 0;
 
@@ -293,14 +293,14 @@ public:
     HashTable (HashFunction hashFunction, size_t capacity = 0, double loadFactor = 0.8)
         : hashFunction(hashFunction)
         , storage(capacity)
-        , loadFactor(loadFactor)
+        , _loadFactor(loadFactor)
         , capacityThreshold((size_t)(capacity * loadFactor))
         , color(getCyclingColor())
     {}
     HashTable (const This& other)
         : hashFunction(other.hashFunction)
-        , storage(other.storage.size())
-        , loadFactor(other.loadFactor)
+        , storage(other.capacity())
+        , _loadFactor(other.loadFactor())
         , capacityThreshold(other.capacityThreshold)
         , color(getCyclingColor())
     {
@@ -314,7 +314,7 @@ public:
     void swap (This& other) {
         std::swap(hashFunction, other.hashFunction);
         storage.swap(other.storage);
-        std::swap(loadFactor, other.loadFactor);
+        std::swap(_loadFactor, other._loadFactor);
         std::swap(capacityThreshold, other.capacityThreshold);
         std::swap(count, other.count);
         std::swap(color, other.color);
@@ -322,38 +322,37 @@ public:
     ~HashTable () {}
 
     size_t size () const { return count; }
+    size_t capacity () const { return storage.size(); }
+    double loadFactor () const { return _loadFactor; }
+    void   loadFactor (double lf) {
+        if (lf < 0.1)   lf = 0.1;
+        if (lf > 0.99)  lf = 0.99;
+        if (lf != _loadFactor) {
+            _loadFactor = lf;
+            capacityThreshold = (size_t)(capacity() * loadFactor());
+            resize(1);
+        }
+    }
     operator bool () const { return size() != 0; }
 
     void resize (size_t size) {
         if (size == 0) {
             size = 1;
         }
-        while (size <= (size_t)(this->size() * loadFactor + 1)) {
-            // info() << "size too small, growing " << size << " => " << (size * 2);
+        // increase target size until it is large enough to fit all array elements w/out resizing
+        while (size <= (size_t)(this->size() * loadFactor() + 1)) {
             size *= 2;
         }
-        size_t newThreshold = (size_t)(size * loadFactor);
-        // info() << "resizing " 
-        //     << storage.size() << ", max " << capacityThreshold
-        //     << " => "
-        //     << size << ", max " << newThreshold
-        //     << " (current usage " << this->size() << ")";
-
-        // info() << "resizing " << storage.size() << " => " << size << "(capacityThreshold = " << capacityThreshold << ")";
-        capacityThreshold = newThreshold;
-        count = 0;
-
+        // Create new storage element w/ the target size, and swap it w/ our current storage
         Storage temp { size };
         storage.swap(temp);
 
-        // info() << "old storage: " << temp;
-        // info() << "new storage: " << storage;
+        // Reset capacityThreshold to accomodate new storage size
+        capacityThreshold = (size_t)(capacity() * loadFactor());
 
+        // clear count + reinsert
+        count = 0;
         insert(temp.begin(), temp.end());
-
-        // info() << "after resize: " << storage;
-
-        // info() << "finished resize (size = " << this->size() << ", capacity = " << storage.size() << ", capacityThreshold = " << capacityThreshold << ")";
     }
     template <typename Callback>
     void each (Callback callback) {
@@ -361,31 +360,31 @@ public:
     }
     // Reinsert all elements
     void reinsert () {
-        resize(storage.size());
+        resize(capacity());
     }
     // Clear all elements
     void clear () {
         if (count != 0) {
-            // info() << "Clearing " << storage.size();
+            // info() << "Clearing " << capacity();
             count = 0;
             storage.clear();
         } else {
-            // info() << "Already cleared " << storage.size();
+            // info() << "Already cleared " << capacity();
         }
     }
 private:
     size_t locate (const Key& key) const {
-        size_t hash = hashFunction(key) % storage.size(); size_t iterations = 0;
+        size_t hash = hashFunction(key) % capacity(); size_t iterations = 0;
         while (storage.contains(hash) && storage[hash].first != key) {
-            hash = (hash + 1) % storage.size();
-            if (++iterations >= storage.size()) {
+            hash = (hash + 1) % capacity();
+            if (++iterations >= capacity()) {
                 // info() << storage;
                 // info() << "WARNING: RECURSION LIMIT EXCEEEDED " 
                 //     << "iterations = " << iterations
                 //     << ", size = " << size()
-                //     << ", capacity = " << storage.size()
+                //     << ", capacity = " << capacity()
                 //     << ", max = " << capacityThreshold;
-                return storage.size();
+                return capacity();
             }
             // assert(iterations --> 0 && "No storage remaining, cannot locate / insert element!");
         }
@@ -395,7 +394,7 @@ private:
 public:
     const Value& operator[] (const Key& key) const {
         auto index = locate(key);
-        if (index < storage.size()) {
+        if (index < capacity()) {
             return storage[index].second;
         } else {
             const static Value v = {};
@@ -404,10 +403,10 @@ public:
     }
     Value& operator[] (const Key& key) {
         if (size() >= capacityThreshold) {
-            resize(storage.size() * 2);
+            resize(capacity() * 2);
         }
         auto index = locate(key);
-        assert(index < storage.size());
+        assert(index < capacity());
         if (storage.maybeInsert(index, key)) {
             ++count;
         }
@@ -415,10 +414,10 @@ public:
     }
     void insert (const KeyValue& kv) {
         if (size() >= capacityThreshold) {
-            resize(storage.size() * 2);
+            resize(capacity() * 2);
         }
         auto index = locate(kv.first);
-        assert(index < storage.size());
+        assert(index < capacity());
         if (storage.maybeInsert(index, kv)) {
             ++count;
         } else {

@@ -223,17 +223,28 @@ int main () {
                 report() << "[ " << join(", ", map(toString, array.begin(), array.end())) << " ]";
             }
         })
-        .caseOf("show", [&](Match match) {
-            report() << array;
+        .caseOf("capacity", [&](Match match) {
+            report() << array.capacity();
         })
-        .caseOf("length", [&](Match match) {
+        .caseOf("length|size", [&](Match match) {
             report() << array.size();
         })
-        .caseOf("memlayout", [&](Match match) {
+        .caseOf("lf {}", [&](Match match) {
+            double lf = atof(match[1].str().c_str());
+            array.loadFactor(lf / 100.0);
+            report() << "Set load factor = " << array.loadFactor(); 
+        })
+        .caseOf("lf", [&](Match match) {
+            report() << "load factor = " << array.loadFactor();
+        })
+        .caseOf("show", [&](Match match) {
             array.each([&](size_t i, bool isSet, const std::pair<Key,Value>& kv) {
                 if (isSet) { report() << i << ": " << kv.first << " => " << kv.second; }
                 else       { report() << i << ": --"; }
             });
+        })
+        .caseOf("display", [&](Match match) {
+            report() << array;
         })
         .caseOf("fill {} {}", [&](Match match) {
             auto a = atoi(match[1].str().c_str());
@@ -243,6 +254,18 @@ int main () {
             report() << "Filling range " << a << " to " << b;
             for (; a < b; ++a) {
                 array[std::to_string(a)] = std::to_string(a);
+                report() << array;
+            }
+        })
+        .caseOf("displayfill {} {}", [&](Match match) {
+            auto a = atoi(match[1].str().c_str());
+            auto b = atoi(match[2].str().c_str());
+            if (b < a) { std::swap(a, b); }
+
+            report() << "Filling range " << a << " to " << b;
+            for (; a < b; ++a) {
+                array[std::to_string(a)] = std::to_string(a);
+                std::cout << "\033[2J\033[H";
                 report() << array;
             }
         })
