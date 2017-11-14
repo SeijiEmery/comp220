@@ -58,7 +58,7 @@ private:
     // Non-owning bitset
     struct Bitset {
         friend class Storage;
-        typedef     size_t word_t;
+        typedef uint8_t word_t;
         static constexpr size_t N = (sizeof(word_t) * 8);
         size_t  size = 0;
         word_t* data = nullptr;
@@ -74,17 +74,13 @@ private:
         }
         void clear () { 
             if (data) {
-                // for (auto i = size; i --> 0; ) {
-                //     warn() << "Clearing word " << i << ": " << data[i] << " => " << (data[i] = 0);
-                //     // data[i] = 0;
-                // }
                 std::fill(&data[0], &data[size], 0); 
             } else {
                 warn() << "NULL BITSET!";
                 assert(0);
             }
         }
-        void assign (size_t* data, size_t size) {
+        void assign (word_t* data, size_t size) {
             this->data = data;
             this->size = size;
             assert((data == nullptr) == (size == 0));
@@ -93,12 +89,12 @@ private:
         operator bool () const { return data != nullptr; }
         bool get   (size_t index) const { return data[index / N] & (1 << (index % N)); }
         void set   (size_t index) const { data[index / N] |= (1 << (index % N)); }
-        void clear (size_t index) const { data[index / N] &= ~(1 << (index % N)); }
+        void clear (size_t index) const { data[index / N] &= (~(1 << (index % N))); }
 
         friend std::ostream& operator<< (std::ostream& os, const Bitset& bitset) {
             os << bitset.size << ":";
             for (size_t i = 0; i < bitset.size; ++i) {
-                for (size_t mask = 1; mask != 0; mask <<= 1) {
+                for (word_t mask = 1; mask != 0; mask <<= 1) {
                     os << ((bitset.data[i] & mask) ? '1' : '0');
                 }
             }
@@ -133,7 +129,7 @@ private:
         Storage (size_t capacity)
             : capacity(capacity)
             , data(new uint8_t[ Bitset::allocationSize(capacity) + capacity * sizeof(KeyValue) ])
-            , bitset(reinterpret_cast<size_t*>(data), Bitset::allocationSize(capacity))
+            , bitset(reinterpret_cast<typename Bitset::word_t*>(data), Bitset::allocationSize(capacity))
             , elements(reinterpret_cast<KeyValue*>(&data[Bitset::allocationSize(capacity) * sizeof(size_t)]))
         {
             for (size_t i = size(); i --> 0; ) {
