@@ -57,19 +57,33 @@ private:
 
     // Non-owning bitset
     struct Bitset {
+        friend class Storage;
+        typedef     size_t word_t;
+        static constexpr size_t N = (sizeof(word_t) * 8);
         size_t  size = 0;
-        size_t* data = nullptr;
+        word_t* data = nullptr;
 
-        Bitset (size_t* data, size_t size) { assign(data, size); }
+        Bitset (word_t* data, size_t size) { assign(data, size); }
         Bitset (const Bitset& other) = delete;
         Bitset& operator= (const Bitset& other) = delete;
         Bitset (Bitset&& other) { *this = std::move(other); }
         Bitset& operator= (Bitset&& other) { return std::swap(data, other.data), std::swap(size, other.size), *this; }
 
         static size_t allocationSize (size_t count) {
-            return (count + (sizeof(size_t) * 8) - 1) / (sizeof(size_t) * 8);
+            return (count + N - 1) / N;
         }
-        void clear () { if (data) { std::fill(&data[0], &data[size], 0); } }
+        void clear () { 
+            if (data) {
+                // for (auto i = size; i --> 0; ) {
+                //     warn() << "Clearing word " << i << ": " << data[i] << " => " << (data[i] = 0);
+                //     // data[i] = 0;
+                // }
+                std::fill(&data[0], &data[size], 0); 
+            } else {
+                warn() << "NULL BITSET!";
+                assert(0);
+            }
+        }
         void assign (size_t* data, size_t size) {
             this->data = data;
             this->size = size;
@@ -77,9 +91,9 @@ private:
             clear();
         }
         operator bool () const { return data != nullptr; }
-        bool get   (size_t index) const { return data[index / sizeof(size_t)] & (1 << (index % sizeof(size_t))); }
-        void set   (size_t index) const { data[index / sizeof(size_t)] |= (1 << (index % sizeof(size_t))); }
-        void clear (size_t index) const { data[index / sizeof(size_t)] &= ~(1 << (index % sizeof(size_t))); }
+        bool get   (size_t index) const { return data[index / N] & (1 << (index % N)); }
+        void set   (size_t index) const { data[index / N] |= (1 << (index % N)); }
+        void clear (size_t index) const { data[index / N] &= ~(1 << (index % N)); }
 
         friend std::ostream& operator<< (std::ostream& os, const Bitset& bitset) {
             os << bitset.size << ":";
@@ -121,7 +135,25 @@ private:
             , data(new uint8_t[ Bitset::allocationSize(capacity) + capacity * sizeof(KeyValue) ])
             , bitset(reinterpret_cast<size_t*>(data), Bitset::allocationSize(capacity))
             , elements(reinterpret_cast<KeyValue*>(&data[Bitset::allocationSize(capacity) * sizeof(size_t)]))
-        {}
+        {
+            for (size_t i = size(); i --> 0; ) {
+                // assert(!bitset.get(i));
+                bool contractFailed = false;
+                if (bitset.get(i)) {
+                    warn() << "non-cleared bit " << i << "!";
+                    contractFailed = true;
+                }
+                if (contractFailed) {
+                    warn() << *this;
+                    warn() 
+                        << "asked for size: " << size()
+                        << ", bitset size: " << bitset.size 
+                        << ", #bytes: " << (bitset.size * sizeof(size_t))
+                        << ", #bits: " << (bitset.size * sizeof(size_t) * 8);
+                }
+                assert(!contractFailed);
+            }
+        }
         Storage (const Storage& other) = delete;
         Storage& operator= (const Storage& other) = delete;
         Storage (Storage&& other) 
@@ -152,7 +184,7 @@ private:
         size_t size () const { return capacity; }
         void clear () { bitset.clear(); }
 
-        bool contains (size_t index) const { return bitset.get(index); }
+        bool contains (size_t index) const { return index < size() && bitset.get(index); }
         bool maybeInsert (size_t index, const Key& key) {
             if (!contains(index)) {
                 bitset.set(index);
@@ -199,7 +231,11 @@ private:
             Storage*    storage;
             size_t      index;
 
-            void advance () { while(index < storage->size() && !storage->bitset.get(index)) ++index; }
+            void advance () { 
+                while(index < storage->size() && !storage->bitset.get(index)) {
+                    ++index; 
+                }
+            }
             Iterator (Storage* storage, size_t index) : storage(storage), index(index) { advance(); }
         public:
             Iterator (const Iterator& other) = default;
@@ -233,6 +269,7 @@ private:
 
     HashFunction hashFunction;
     Storage      storage;
+    double       loadFactor;
     size_t       capacityThreshold;
     size_t       count = 0;
 
@@ -257,15 +294,17 @@ public:
     // Primary interface...
     //
     HashTable () = delete;
-    HashTable (HashFunction hashFunction, size_t capacity = 0, double threshold = 0.8)
+    HashTable (HashFunction hashFunction, size_t capacity = 0, double loadFactor = 0.8)
         : hashFunction(hashFunction)
         , storage(capacity)
-        , capacityThreshold((size_t)(capacity * threshold))
+        , loadFactor(loadFactor)
+        , capacityThreshold((size_t)(capacity * loadFactor))
         , color(getCyclingColor())
     {}
     HashTable (const This& other)
         : hashFunction(other.hashFunction)
         , storage(other.storage.size())
+        , loadFactor(other.loadFactor)
         , capacityThreshold(other.capacityThreshold)
         , color(getCyclingColor())
     {
@@ -279,36 +318,43 @@ public:
     void swap (This& other) {
         std::swap(hashFunction, other.hashFunction);
         storage.swap(other.storage);
+        std::swap(loadFactor, other.loadFactor);
         std::swap(capacityThreshold, other.capacityThreshold);
         std::swap(count, other.count);
         std::swap(color, other.color);
     }
-
-    // This& operator= (This&& other) {
-    //     std::swap(hashFunction, other.hashFunction);
-    //     std::swap(storage, other.storage);
-    //     std::swap(capacityThreshold, other.capacityThreshold);
-    //     std::swap(count, other.count);
-    //     std::swap(color, other.color);
-    //     return *this;
-    // }
-    // HashTable (This&& other)
-    //     : hashFunction(std::move(other.hashFunction))
-    //     , storage(std::move(other.storage))
-    //     , capacityThreshold(other.capacityThreshold)
-    //     , color(getCyclingColor())
-    // {}
     ~HashTable () {}
 
     size_t size () const { return count; }
     operator bool () const { return size() != 0; }
 
     void resize (size_t size) {
-        info() << "Resizing " << storage.size() << " => " << size << " (has " << count << " elements)";
-        assert((size > count) && "Not enough capacity to hold all data elements!");
-        HashTable temp(hashFunction, size);
-        temp.insert(begin(), end());
-        swap(temp);
+        while (size <= (size_t)(this->size() * loadFactor + 1)) {
+            info() << "size too small, growing " << size << " => " << (size * 2);
+            size *= 2;
+        }
+        size_t newThreshold = (size_t)(size * loadFactor);
+        info() << "resizing " 
+            << storage.size() << ", max " << capacityThreshold
+            << " => "
+            << size << ", max " << newThreshold
+            << " (current usage " << this->size() << ")";
+
+        // info() << "resizing " << storage.size() << " => " << size << "(capacityThreshold = " << capacityThreshold << ")";
+        capacityThreshold = newThreshold;
+        count = 0;
+
+        Storage temp { size };
+        storage.swap(temp);
+
+        info() << "old storage: " << temp;
+        info() << "new storage: " << storage;
+
+        insert(temp.begin(), temp.end());
+
+        info() << "after resize: " << storage;
+
+        // info() << "finished resize (size = " << this->size() << ", capacity = " << storage.size() << ", capacityThreshold = " << capacityThreshold << ")";
     }
     void debugMemLayout () {
         storage.each([&](size_t i, bool set, const KeyValue& kv) {
@@ -326,7 +372,7 @@ public:
     // Clear all elements
     void clear () {
         if (count != 0) {
-            info() << "Clearing " << storage.size();
+            // info() << "Clearing " << storage.size();
             count = 0;
             storage.clear();
         } else {
@@ -335,37 +381,51 @@ public:
     }
 private:
     size_t locate (const Key& key) const {
-        size_t hash = hashFunction(key) % storage.size(); size_t iterations = storage.size();
+        size_t hash = hashFunction(key) % storage.size(); size_t iterations = 0;
         while (storage.contains(hash) && storage[hash].first != key) {
             hash = (hash + 1) % storage.size();
-            assert(iterations --> 0 && "No storage remaining, cannot locate / insert element!");
+            if (++iterations >= storage.size()) {
+                info() << storage;
+                info() << "WARNING: RECURSION LIMIT EXCEEEDED " 
+                    << "iterations = " << iterations
+                    << ", size = " << size()
+                    << ", capacity = " << storage.size()
+                    << ", max = " << capacityThreshold;
+                return storage.size();
+            }
+            // assert(iterations --> 0 && "No storage remaining, cannot locate / insert element!");
         }
-        info() << "Found hash for key " << key << ": " << hash << ", distance " << iterations << ")";
+        // info() << "Found hash for key " << key << ": " << hash << ", distance " << iterations << ")";
         return hash;
     }
 public:
     const Value& operator[] (const Key& key) const {
-        return storage[locate(key)].second;
+        auto index = locate(key);
+        if (index < storage.size()) {
+            return storage[index].second;
+        } else {
+            return {};
+        }
     }
     Value& operator[] (const Key& key) {
+        if (size() >= capacityThreshold) {
+            resize(storage.size() * 2);
+        }
         auto index = locate(key);
+        assert(index < storage.size());
         if (storage.maybeInsert(index, key)) {
-            info() << "Inserted " << key << " at " << index;
-            if (++count > capacityThreshold) {
-                info() << "Capacity exceeded, resizing: " << count << " > " << capacityThreshold;
-                resize(storage.size() * 2);
-            }
+            ++count;
         }
         return storage[index].second;
     }
     void insert (const KeyValue& kv) {
+        if (size() >= capacityThreshold) {
+            resize(storage.size() * 2);
+        }
         auto index = locate(kv.first);
+        assert(index < storage.size());
         if (storage.maybeInsert(index, kv)) {
-            info() << "inserted " << kv.first << ", " << kv.second << " at " << index;
-            if (++count > capacityThreshold) {
-                info() << "Capacity exceeded, resizing: " << count << " > " << capacityThreshold;
-                resize(storage.size() * 2);
-            }
+            ++count;
         }
     }
     bool containsKey (const Key& key) {
@@ -374,7 +434,7 @@ public:
     void deleteKey (const Key& key) {
         auto index = locate(key);
         if (storage.maybeDelete(index)) {
-            info() << "deleted " << key << " at " << index;
+            // info() << "deleted " << key << " at " << index;
             --count;
         }
     }
@@ -383,7 +443,7 @@ public:
     }
     template <typename It>
     void insert (It begin, It end) {
-        info() << "Inserting values";
+        // info() << "Inserting values";
         for (; begin != end; ++begin) {
             insert(*begin);
         }
