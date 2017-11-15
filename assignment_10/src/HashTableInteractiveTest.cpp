@@ -243,6 +243,17 @@ int main () {
                 else       { report() << i << ": --"; }
             });
         })
+        .caseOf("displayfill {} {}", [&](Match match) {
+            auto a = atoi(match[1].str().c_str());
+            auto b = atoi(match[2].str().c_str());
+            if (b < a) { std::swap(a, b); }
+
+            report() << "Filling range " << a << " to " << b;
+            for (; a < b; ++a) {
+                array[std::to_string(a)] = std::to_string(a);
+                report() << "\033[2J\033[;H" << array;
+            }
+        })
         .caseOf("display|info", [&](Match match) {
             report() << array;
         })
@@ -254,18 +265,6 @@ int main () {
             report() << "Filling range " << a << " to " << b;
             for (; a < b; ++a) {
                 array[std::to_string(a)] = std::to_string(a);
-                report() << array;
-            }
-        })
-        .caseOf("displayfill {} {}", [&](Match match) {
-            auto a = atoi(match[1].str().c_str());
-            auto b = atoi(match[2].str().c_str());
-            if (b < a) { std::swap(a, b); }
-
-            report() << "Filling range " << a << " to " << b;
-            for (; a < b; ++a) {
-                array[std::to_string(a)] = std::to_string(a);
-                std::cout << "\033[2J\033[H";
                 report() << array;
             }
         })
