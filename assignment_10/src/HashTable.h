@@ -131,16 +131,7 @@ private:
             , data(malloc(Bitset::allocationSize(capacity) + capacity * sizeof(KeyValue)))
             , bitset(reinterpret_cast<typename Bitset::word_t*>(data), Bitset::allocationSize(capacity))
             , elements(reinterpret_cast<KeyValue*>(&bitset.data[bitset.size]))
-        {
-            warn() << "allocated " << (Bitset::allocationSize(capacity) + capacity * sizeof(KeyValue)) << " bytes";
-            warn() << "bitset address:  " << ((void*)data) << ", size " << Bitset::allocationSize(capacity);
-            warn() << "element address: " << ((void*)elements) 
-                << ", offset " << ((size_t)(elements) - (size_t)(data))
-                << ", size " << capacity << " * " << sizeof(KeyValue) << " = " << (capacity * sizeof(KeyValue));
-            warn() << "last address:    " << ((void*)(&elements[capacity-1]))
-                << ", offset " << ((size_t)(&elements[capacity-1]) - (size_t)(data));
-            warn() << "accessing last value: " << elements[capacity-1].first;
-        }
+        {}
         Storage (const Storage& other) = delete;
         Storage& operator= (const Storage& other) = delete;
         Storage (Storage&& other) 
@@ -160,7 +151,6 @@ private:
             std::swap(elements, other.elements);
         }
         ~Storage () {
-            warn() << "freeing storage: " << ((void*)data) << ", capacity " << capacity;
             for (size_t i = 0; i < size(); ++i) {
                 maybeDelete(i);
             }
@@ -184,19 +174,9 @@ private:
         }
         bool maybeInsert (size_t index, const KeyValue& kv) {
             if (!contains(index)) {
-                warn() << "data address: " << ((void*)data);
-                warn() << "calling bitset.set()";
                 bitset.set(index);
-                warn() << "constructing at " << (&elements[index]) 
-                    << ", offset " << ((size_t)(&elements[index]) - (size_t)(data)) 
-                    << " (" << index << ", " << capacity << ")"; 
-
-                warn() << "current key = " << elements[index].first;
-
-
                 // call constructor -- necessary b/c this is unitialized memory and assignment alone does not work for all types
                 new (&elements[index]) KeyValue(kv);
-                warn() << "construction ok";
                 return true;
             }
             return false;
@@ -272,9 +252,6 @@ private:
     size_t       count = 0;
     size_t       numCollisions = 0;     // statistics: # collisions, and total distance traveled
     size_t       collisionDist = 0;     // in collisions. updated by insert, delete, clear operations
-
-    const char* color;
-    LineWriter info () const { return writeln(std::cout, color); }
 public:
     //
     // Utility methods...
@@ -302,14 +279,12 @@ public:
         , storage(capacity)
         , _loadFactor(loadFactor)
         , capacityThreshold((size_t)(capacity * loadFactor))
-        , color(getCyclingColor())
     {}
     HashTable (const This& other)
         : hashFunction(other.hashFunction)
         , storage(other.capacity())
         , _loadFactor(other.loadFactor())
         , capacityThreshold(other.capacityThreshold)
-        , color(getCyclingColor())
     {
         insert(other.begin(), other.end());   
     }
@@ -326,7 +301,6 @@ public:
         std::swap(count, other.count);
         std::swap(numCollisions, other.numCollisions);
         std::swap(collisionDist, other.collisionDist);
-        std::swap(color, other.color);
     }
     ~HashTable () {}
 
@@ -352,13 +326,9 @@ public:
         while (this->size() + 1 >= size * loadFactor()) {
             size *= 2;
         }
-        info() << "resizing " << capacity() << " => " << size;
-
         // Create new storage element w/ the target size, and swap it w/ our current storage
         Storage temp { size };
         storage.swap(temp);
-        info() << "initialized storage";
-
 
         // Reset capacityThreshold to accomodate new storage size
         capacityThreshold = (size_t)(capacity() * loadFactor());
@@ -366,15 +336,12 @@ public:
         assert(capacityThreshold > count);
         size_t prevSize = count;
 
-        info() << "inserting " << count << " elements";
-
         // clear count + reinsert
         count = 0;
         numCollisions = 0;
         collisionDist = 0;
         insert(temp.begin(), temp.end());
         assert(prevSize == count);
-        info() << "inserted elements";
     }
     template <typename Callback>
     void each (Callback callback) {
@@ -403,18 +370,15 @@ private:
         while (storage.contains(hash) && storage[hash].first != key) {
             hash = (hash + 1) % capacity();
             if (++iterations >= capacity()) {
-                info() << storage;
-                info() << "WARNING: RECURSION LIMIT EXCEEEDED " 
-                    << "iterations = " << iterations
-                    << ", size = " << size()
-                    << ", capacity = " << capacity()
-                    << ", max = " << capacityThreshold;
-                assert(0);
+                // warn() << storage;
+                // warn() << "WARNING: RECURSION LIMIT EXCEEEDED " 
+                //     << "iterations = " << iterations
+                //     << ", size = " << size()
+                //     << ", capacity = " << capacity()
+                //     << ", max = " << capacityThreshold;
                 return capacity();
             }
-            // assert(iterations --> 0 && "No storage remaining, cannot locate / insert element!");
         }
-        // info() << "Found hash for key " << key << ": " << hash << ", distance " << iterations << ")";
         return hash;
     }
     size_t locate (const Key& key) const {
@@ -455,19 +419,15 @@ public:
         assert(size() < capacityThreshold);
         
         size_t collisions;
-        info() << "locating";
         auto index = locate(kv.first, collisions);
-        info() << "inserting (" << kv.first << ", " << kv.second << ") at " << index;
         assert(index < capacity());
         if (storage.maybeInsert(index, kv)) {
-            info() << "insert ok";
             ++count;
             if (collisions) {
                 numCollisions += 1;
                 collisionDist += collisions;
             }
         } else {
-            info() << "already inserted";
             storage[index] = kv;
         }
     }
@@ -490,9 +450,7 @@ public:
     }
     template <typename It>
     void insert (It begin, It end) {
-        // info() << "Inserting values";
         for (; begin != end; ++begin) {
-            // info() << "inserting " << begin->first << " = " << begin->second;
             insert(*begin);
         }
     }
