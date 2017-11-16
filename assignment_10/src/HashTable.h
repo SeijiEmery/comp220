@@ -122,33 +122,24 @@ private:
     //
     class Storage {
         size_t      capacity;
-        uint8_t*    data;
+        void*       data;
         Bitset      bitset;
         KeyValue*   elements;
     public:
         Storage (size_t capacity)
             : capacity(capacity)
-            , data(new uint8_t[ Bitset::allocationSize(capacity) + capacity * sizeof(KeyValue) ])
+            , data(malloc(Bitset::allocationSize(capacity) + capacity * sizeof(KeyValue)))
             , bitset(reinterpret_cast<typename Bitset::word_t*>(data), Bitset::allocationSize(capacity))
-            , elements(reinterpret_cast<KeyValue*>(&data[Bitset::allocationSize(capacity) * sizeof(size_t)]))
+            , elements(reinterpret_cast<KeyValue*>(&bitset.data[bitset.size]))
         {
-            for (size_t i = size(); i --> 0; ) {
-                // assert(!bitset.get(i));
-                bool contractFailed = false;
-                if (bitset.get(i)) {
-                    warn() << "non-cleared bit " << i << "!";
-                    contractFailed = true;
-                }
-                if (contractFailed) {
-                    warn() << *this;
-                    warn() 
-                        << "asked for size: " << size()
-                        << ", bitset size: " << bitset.size 
-                        << ", #bytes: " << (bitset.size * sizeof(size_t))
-                        << ", #bits: " << (bitset.size * sizeof(size_t) * 8);
-                }
-                assert(!contractFailed);
-            }
+            warn() << "allocated " << (Bitset::allocationSize(capacity) + capacity * sizeof(KeyValue)) << " bytes";
+            warn() << "bitset address:  " << ((void*)data) << ", size " << Bitset::allocationSize(capacity);
+            warn() << "element address: " << ((void*)elements) 
+                << ", offset " << ((size_t)(elements) - (size_t)(data))
+                << ", size " << capacity << " * " << sizeof(KeyValue) << " = " << (capacity * sizeof(KeyValue));
+            warn() << "last address:    " << ((void*)(&elements[capacity-1]))
+                << ", offset " << ((size_t)(&elements[capacity-1]) - (size_t)(data));
+            warn() << "accessing last value: " << elements[capacity-1].first;
         }
         Storage (const Storage& other) = delete;
         Storage& operator= (const Storage& other) = delete;
@@ -169,10 +160,11 @@ private:
             std::swap(elements, other.elements);
         }
         ~Storage () {
+            warn() << "freeing storage: " << ((void*)data) << ", capacity " << capacity;
             for (size_t i = 0; i < size(); ++i) {
                 maybeDelete(i);
             }
-            delete[] data;
+            free(data);
         }
         friend std::ostream& operator<< (std::ostream& os, const Storage& self) {
             return os << "capacity = " << self.size() << ", bitset " << self.bitset;
@@ -192,9 +184,19 @@ private:
         }
         bool maybeInsert (size_t index, const KeyValue& kv) {
             if (!contains(index)) {
+                warn() << "data address: " << ((void*)data);
+                warn() << "calling bitset.set()";
                 bitset.set(index);
+                warn() << "constructing at " << (&elements[index]) 
+                    << ", offset " << ((size_t)(&elements[index]) - (size_t)(data)) 
+                    << " (" << index << ", " << capacity << ")"; 
+
+                warn() << "current key = " << elements[index].first;
+
+
                 // call constructor -- necessary b/c this is unitialized memory and assignment alone does not work for all types
                 new (&elements[index]) KeyValue(kv);
+                warn() << "construction ok";
                 return true;
             }
             return false;
@@ -322,6 +324,8 @@ public:
         std::swap(_loadFactor, other._loadFactor);
         std::swap(capacityThreshold, other.capacityThreshold);
         std::swap(count, other.count);
+        std::swap(numCollisions, other.numCollisions);
+        std::swap(collisionDist, other.collisionDist);
         std::swap(color, other.color);
     }
     ~HashTable () {}
@@ -345,21 +349,32 @@ public:
             size = 1;
         }
         // increase target size until it is large enough to fit all array elements w/out resizing
-        while (size <= (size_t)(this->size() * loadFactor() + 1)) {
+        while (this->size() + 1 >= size * loadFactor()) {
             size *= 2;
         }
+        info() << "resizing " << capacity() << " => " << size;
+
         // Create new storage element w/ the target size, and swap it w/ our current storage
         Storage temp { size };
         storage.swap(temp);
+        info() << "initialized storage";
+
 
         // Reset capacityThreshold to accomodate new storage size
         capacityThreshold = (size_t)(capacity() * loadFactor());
+        assert(capacity() == size);
+        assert(capacityThreshold > count);
+        size_t prevSize = count;
+
+        info() << "inserting " << count << " elements";
 
         // clear count + reinsert
         count = 0;
         numCollisions = 0;
         collisionDist = 0;
         insert(temp.begin(), temp.end());
+        assert(prevSize == count);
+        info() << "inserted elements";
     }
     template <typename Callback>
     void each (Callback callback) {
@@ -388,12 +403,13 @@ private:
         while (storage.contains(hash) && storage[hash].first != key) {
             hash = (hash + 1) % capacity();
             if (++iterations >= capacity()) {
-                // info() << storage;
-                // info() << "WARNING: RECURSION LIMIT EXCEEEDED " 
-                //     << "iterations = " << iterations
-                //     << ", size = " << size()
-                //     << ", capacity = " << capacity()
-                //     << ", max = " << capacityThreshold;
+                info() << storage;
+                info() << "WARNING: RECURSION LIMIT EXCEEEDED " 
+                    << "iterations = " << iterations
+                    << ", size = " << size()
+                    << ", capacity = " << capacity()
+                    << ", max = " << capacityThreshold;
+                assert(0);
                 return capacity();
             }
             // assert(iterations --> 0 && "No storage remaining, cannot locate / insert element!");
@@ -418,6 +434,8 @@ public:
         if (size() >= capacityThreshold) {
             resize(capacity() * 2);
         }
+        assert(size() < capacityThreshold);
+
         size_t collisions;
         auto index = locate(key, collisions);
         assert(index < capacity());
@@ -434,16 +452,22 @@ public:
         if (size() >= capacityThreshold) {
             resize(capacity() * 2);
         }
+        assert(size() < capacityThreshold);
+        
         size_t collisions;
+        info() << "locating";
         auto index = locate(kv.first, collisions);
+        info() << "inserting (" << kv.first << ", " << kv.second << ") at " << index;
         assert(index < capacity());
         if (storage.maybeInsert(index, kv)) {
+            info() << "insert ok";
             ++count;
             if (collisions) {
                 numCollisions += 1;
                 collisionDist += collisions;
             }
         } else {
+            info() << "already inserted";
             storage[index] = kv;
         }
     }
