@@ -1,12 +1,20 @@
+// Programmer: Seiji Emery
+// Programmer ID: M00202623
+//
+// HashTable.h
+//
+// Implements a hashtable, open addressed (not chaining).
+// Is thoroughly tested in HashTable.TestDriver.cpp and HashTableInteractiveTest.cpp
+//
+// remote source: https://github.com/SeijiEmery/comp220/blob/master/assignment_10/src/HashTable.h
+//
+
 #ifndef HashTable_h
 #define HashTable_h
 
 #include <utility>      // std::pair
 #include <algorithm>    // std::fill
 #include <cassert>      // assert
-
-#include <iostream>
-
 
 template <typename Key, typename Value, typename HashFunction = size_t(*)(const Key&)>
 class HashTable {

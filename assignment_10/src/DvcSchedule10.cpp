@@ -14,7 +14,7 @@
 // it is significantly slower than DVC-8, which brought further improvements / optimizations
 // and is highly modular.
 //
-// remote source: https://github.com/SeijiEmery/comp220/blob/master/assignment_09/src/DvcSchedule9.cpp
+// remote source: https://github.com/SeijiEmery/comp220/blob/master/assignment_10/src/DvcSchedule10.cpp
 //
 #include <iostream>
 #include <iomanip>
