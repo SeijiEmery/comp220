@@ -371,7 +371,7 @@ public:
         }
         return storage[index].second;
     }
-    void insert (const KeyValue& kv) {
+    bool insert (const KeyValue& kv) {
         if (size() >= capacityThreshold) {
             resize(capacity() * 2);
         }
@@ -386,8 +386,10 @@ public:
                 numCollisions += 1;
                 collisionDist += collisions;
             }
+            return true;
         } else {
             storage[index] = kv;
+            return false;
         }
     }
     bool containsKey (const Key& key) {
@@ -404,8 +406,8 @@ public:
             }
         }
     }
-    void insert (const Key& key, const Value& value) {
-        insert({ key, value });
+    bool insert (const Key& key, const Value& value) {
+        return insert({ key, value });
     }
     template <typename It>
     void insert (It begin, It end) {
