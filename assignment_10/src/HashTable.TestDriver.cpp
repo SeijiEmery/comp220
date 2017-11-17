@@ -18,14 +18,41 @@ using namespace std;
 //
 
 #ifndef NO_ANSI_COLORS
-    #define SET_COLOR(code) "\033[" #code "m"
+    #define SET_COLOR(code) "\033[" code "m"
 #else
     #define SET_COLOR(code) ""
 #endif
-#define CLEAR_COLOR SET_COLOR(0)
-#define SET_RED     SET_COLOR(31)
-#define SET_GREEN   SET_COLOR(32)
-#define SET_YELLOW  SET_COLOR(33)
+#define CLEAR_COLOR SET_COLOR("0")
+#define SET_CYAN    SET_COLOR("36;1")
+#define SET_RED     SET_COLOR("31;1")
+#define SET_GREEN   SET_COLOR("32;1")
+#define SET_YELLOW  SET_COLOR("33;1")
+#define SET_BLUE    SET_COLOR("34;1")
+#define SET_PINK    SET_COLOR("35;1")
+
+struct LineWriter {
+    std::ostream& os;
+    bool shouldClearColor;
+    LineWriter (std::ostream& os, const char* startColor = nullptr) : 
+        os(os), shouldClearColor(startColor != nullptr)
+    {
+        if (startColor) { os << startColor; }
+    }
+    template <typename T>
+    LineWriter& operator<< (const T& other) {
+        return os << other, *this;
+    }
+    ~LineWriter () {
+        if (shouldClearColor) { os << CLEAR_COLOR "\n"; }
+        else { os << '\n'; }
+    }
+};
+LineWriter writeln  (std::ostream& os, const char* color = nullptr) { return LineWriter(os, color); }
+LineWriter writeln  (const char* color = nullptr) { return LineWriter(std::cout, color); }
+LineWriter report (std::ostream& os = std::cout) { return writeln(os, SET_CYAN); }
+LineWriter warn   (std::ostream& os = std::cout) { return writeln(os, SET_RED); }
+LineWriter info   (std::ostream& os = std::cout) { return writeln(os, SET_GREEN); }
+
 
 namespace mintest {
 
@@ -245,7 +272,7 @@ void _testHTImpl (
                 ASSERT_EQ(storage.contains(4), false);
             }
             SECTION("after second swap") {
-                storage.swap(s2);
+                 storage.swap(s2);
 
                 ASSERT_EQ(storage.size(), 10);
                 ASSERT_EQ(storage.contains(1), false);
@@ -338,7 +365,7 @@ void _testHTImpl (
         }
     }
     SECTION("Testing " << name) {
-        auto dict = hashtable.create(100, 0.8);
+        auto dict = hashtable.create(1, 0.8);
         SECTION("Should initially be empty") {
             ASSERT_EQ(dict.size(), 0);
             ASSERT_EQ(bool(dict), false);
@@ -355,7 +382,7 @@ void _testHTImpl (
             ASSERT_EQ(it->first, keys[0]);
             ASSERT_EQ(it->second, values[0]);
             ++it;
-            ASSERT_NE(it, dict.end());
+            ASSERT_EQ(it, dict.end());
 
             dict[keys[1]] = values[1];
             ASSERT_EQ(dict[keys[1]], values[1]);
@@ -371,6 +398,9 @@ void _testHTImpl (
             ASSERT_EQ(it->second, values[1]);
             ++it;
             ASSERT_EQ(it, dict.end());
+            if (it != dict.end()) {
+                info() << it->first << ", " << it->second;
+            }
         }
         SECTION("Test duplicate insertion") {
             dict[keys[0]] = values[1];

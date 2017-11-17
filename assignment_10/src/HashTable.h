@@ -7,43 +7,6 @@
 
 #include <iostream>
 
-#define SET_COLOR(code) "\033[" code "m"
-#define CLEAR_COLOR SET_COLOR("0")
-#define SET_CYAN    SET_COLOR("36;1")
-#define SET_RED     SET_COLOR("31;1")
-#define SET_GREEN   SET_COLOR("32;1")
-#define SET_YELLOW  SET_COLOR("33;1")
-#define SET_BLUE    SET_COLOR("34;1")
-#define SET_PINK    SET_COLOR("35;1")
-
-struct LineWriter {
-    std::ostream& os;
-    bool shouldClearColor;
-    LineWriter (std::ostream& os, const char* startColor = nullptr) : 
-        os(os), shouldClearColor(startColor != nullptr)
-    {
-        if (startColor) { os << startColor; }
-    }
-    template <typename T>
-    LineWriter& operator<< (const T& other) {
-        return os << other, *this;
-    }
-    ~LineWriter () {
-        if (shouldClearColor) { os << CLEAR_COLOR "\n"; }
-        else { os << '\n'; }
-    }
-};
-LineWriter writeln  (std::ostream& os, const char* color = nullptr) { return LineWriter(os, color); }
-LineWriter writeln  (const char* color = nullptr) { return LineWriter(std::cout, color); }
-LineWriter report () { return writeln(SET_CYAN); }
-LineWriter warn   () { return writeln(SET_RED); }
-LineWriter info   () { return writeln(SET_GREEN); }
-
-
-const static char* colors[11] = { SET_COLOR("31"), SET_COLOR("32"), SET_COLOR("33"), SET_COLOR("34"), SET_COLOR("35"), SET_COLOR("1;30"), SET_COLOR("1;31"), SET_COLOR("1;32"), SET_COLOR("1;33"), SET_COLOR("1;34"), SET_COLOR("1;35") };
-static int nextColor = 0;
-const char* getCyclingColor () { auto color = colors[nextColor]; ++nextColor; nextColor %= (sizeof(colors) / sizeof(colors[0])); return color; }
-
 
 template <typename Key, typename Value, typename HashFunction = size_t(*)(const Key&)>
 class HashTable {
@@ -73,12 +36,8 @@ private:
             return (count + N - 1) / N;
         }
         void clear () { 
-            if (data) {
-                std::fill(&data[0], &data[size], 0); 
-            } else {
-                warn() << "NULL BITSET!";
-                assert(0);
-            }
+            assert(data != nullptr);
+            std::fill(&data[0], &data[size], 0); 
         }
         void assign (word_t* data, size_t size) {
             this->data = data;
@@ -128,7 +87,7 @@ private:
     public:
         Storage (size_t capacity)
             : capacity(capacity)
-            , data(malloc(Bitset::allocationSize(capacity) + capacity * sizeof(KeyValue)))
+            , data((void*)(new uint8_t[Bitset::allocationSize(capacity) + capacity * sizeof(KeyValue)]))
             , bitset(reinterpret_cast<typename Bitset::word_t*>(data), Bitset::allocationSize(capacity))
             , elements(reinterpret_cast<KeyValue*>(&bitset.data[bitset.size]))
         {}
@@ -154,7 +113,7 @@ private:
             for (size_t i = 0; i < size(); ++i) {
                 maybeDelete(i);
             }
-            free(data);
+            delete[] ((uint8_t*)data);
         }
         friend std::ostream& operator<< (std::ostream& os, const Storage& self) {
             return os << "capacity = " << self.size() << ", bitset " << self.bitset;
@@ -483,7 +442,7 @@ public:
 };
 
 template <typename Key, typename Value, typename HashFunction>
-auto make_hashtable (HashFunction hashFunction, size_t size = 0) -> HashTable<Key,Value,HashFunction> {
+auto make_hashtable (HashFunction hashFunction, size_t size = 1) -> HashTable<Key,Value,HashFunction> {
     return { hashFunction, size };
 } 
 
