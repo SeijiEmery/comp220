@@ -22,6 +22,40 @@
 #include "PriorityQueue.h"
 
 
+#define SET_COLOR(code) "\033[" code "m"
+#define CLEAR_COLOR SET_COLOR("0")
+#define SET_CYAN    SET_COLOR("36;1")
+#define SET_RED     SET_COLOR("31;1")
+#define SET_GREEN   SET_COLOR("32;1")
+#define SET_YELLOW  SET_COLOR("33;1")
+#define SET_BLUE    SET_COLOR("34;1")
+#define SET_PINK    SET_COLOR("35;1")
+
+struct LineWriter {
+    std::ostream& os;
+    const char* startColor;
+    bool shouldClearColor;
+    LineWriter (std::ostream& os, const char* startColor = nullptr) : 
+        os(os), shouldClearColor(startColor != nullptr)
+    {
+        if (startColor) { os << startColor; }
+    }
+    template <typename T>
+    LineWriter& operator<< (const T& other) {
+        return os << other, *this;
+    }
+    ~LineWriter () {
+        if (shouldClearColor) { os << CLEAR_COLOR "\n"; }
+        else { os << '\n'; }
+    }
+};
+LineWriter writeln  (std::ostream& os, const char* color = nullptr) { return LineWriter(os, color); }
+LineWriter writeln  (const char* color = nullptr) { return LineWriter(std::cout, color); }
+LineWriter report (std::ostream& os = std::cout) { return writeln(os, SET_CYAN); }
+LineWriter warn   (std::ostream& os = std::cout) { return writeln(os, SET_RED); }
+LineWriter info   (std::ostream& os = std::cout) { return writeln(os, SET_GREEN); }
+
+
 //
 // Simple regex-based parser to implement a simple DSL / interpreter to test hashtable with
 //
@@ -233,11 +267,20 @@ int main () {
             report() << "[]";
         }
     };
+    auto const debug = [&](const PriorityQueue<int>& queue) {
+        warn() << queue;
+    };
 
     SimpleRegexParser()
         .caseOf("quit", [&](Match match) {
             warn() << "exiting";
             exit(0);
+        })
+        .caseOf("debug on", [&](Match match) {
+            queue.debugOnSwap(debug);
+        })
+        .caseOf("debug off", [&](Match match) {
+            queue.debugOnSwap(nullptr);
         })
         .caseOf("empty", [&](Match match) {
             report() << (queue.empty() ? "true" : "false");
