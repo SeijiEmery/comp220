@@ -7,6 +7,7 @@
 //
 
 #include <iostream>
+#include <iomanip>
 #include <vector>
 using namespace std;
 
@@ -51,7 +52,7 @@ double benchmark (size_t iterations, const F& inner) {
             inner();
         }
     });
-    std::cout << "runtime: " << duration << '\n';
+    // std::cout << "runtime: " << duration << '\n';
     return duration / static_cast<double>(iterations);
 }
 
@@ -162,22 +163,27 @@ public:
     }
     This& runSuite (std::initializer_list<std::pair<size_t, size_t>> counts) {
         LocalMemoryTracer memoryTracer;
+        double expected = 0;
 
+        srand(time(nullptr));
         for (const auto& pair : counts) {
             size_t count = pair.first, iterations = pair.second;
-            srand(time(nullptr));
-
             generate(count, [](){ return static_cast<T>(rand() % 2048 - 1024); });
-            
+
             memoryTracer.enter();
             run(iterations, [&](size_t iterations, double benchDuration /* seconds */) {
                 memoryTracer.exit();
-                std::cout << "Ran " << iterations << " iterations, total " 
-                    << benchDuration 
-                    << " each " << (benchDuration / count * 1e6) << " µs"
-                    << " used memory " << (memoryTracer.usedMemory * 1e-6) << " MB, "
-                    << memoryTracer.usedAllocs << " allocation(s)"
-                    << " for " << count << " element(s)\n";
+                double usedMemory = (double)memoryTracer.usedMemory / iterations;
+                double usedAllocs = (double)memoryTracer.usedAllocs / iterations;
+
+                std::cout 
+                    << "push count: " << std::setw(9) << count
+                    << " time: " << std::setw(8) << (benchDuration * 1e3) << " ms / run "
+                    << " (expected " << std::setw(8) << (expected * count * 1e3) << " ms) "
+                    << " memory " << std::setw(8) << (usedMemory * 1e-6) << " MB, "
+                    << std::setw(3) << (int)usedAllocs << " allocation(s)"
+                    << std::endl;
+                expected = benchDuration / count;
                 memoryTracer.exit();
             });
         }
@@ -205,7 +211,7 @@ int main () {
     std::cout << "Programmer: Seiji Emery\n"
               << "Programmer's id: M00202623\n"
               << "File: " __FILE__ "\n\n";
-              
+
     PriorityQueuePushBenchmark<double>()
         .runSuite({
             { 1,  1000 }, 
