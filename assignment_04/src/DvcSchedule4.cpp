@@ -332,7 +332,7 @@ private:
     size_t freedMem       = 0;  // bytes freed
 
     std::chrono::high_resolution_clock::time_point t0;  // time at program start
-public:
+public: 
     MemTracer () : t0(std::chrono::high_resolution_clock::now()) {}
     ~MemTracer () {
         using namespace std::chrono;

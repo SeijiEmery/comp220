@@ -4,7 +4,10 @@
 
 #include <vector>
 #include <cassert>
+
+#ifndef NO_PQUEUE_DEBUG
 #include <functional> // std::function
+#endif
 
 template <typename T>
 class PriorityQueue {
@@ -12,18 +15,23 @@ public:
     typedef PriorityQueue<T> This;
 private:
     std::vector<T> elements;
-    std::function<void(const This&)> debugCallback;
 
+    #ifndef NO_PQUEUE_DEBUG
+    std::function<void(const This&)> debugCallback;
     void debugSwapOperation () { if (debugCallback) { debugCallback(*this); } }
+    #else
+    void debugSwapOperation () {}
+    #endif
 
     static size_t parent (size_t i) { return (i + 1) / 2 - 1; }
     static size_t left   (size_t i) { return i * 2 + 1; }
     static size_t right  (size_t i) { return i * 2 + 2; }
 
     void heapify (size_t i) {
+        assert(i < size());
         while (i > 0 && elements[i] > elements[parent(i)]) {
-            debugSwapOperation();
             std::swap(elements[i], elements[parent(i)]); i = parent(i);
+            debugSwapOperation();
         }
     }
 public:
@@ -34,8 +42,10 @@ public:
     This& operator= (This&& other) { return elements = std::move(other.elements), *this; }
     ~PriorityQueue () {}
 
+    #ifndef NO_PQUEUE_DEBUG
     template <typename F>
     void debugOnSwap (F callback) { debugCallback = callback; debugSwapOperation(); }
+    #endif
 
     friend bool operator == (const This& a, const This& b) { return a.elements == b.elements; }
     friend bool operator != (const This& a, const This& b) { return a.elements != b.elements; }
@@ -86,7 +96,7 @@ public:
         if (i < n - 1) {
             debugSwapOperation();
             std::swap(elements[i], elements[n - 1]);
-            heapify(elements[i]);
+            heapify(i);
         }
         debugSwapOperation();
         elements.pop_back();

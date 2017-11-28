@@ -13,6 +13,7 @@ using namespace std;
 
 #include <ctime>
 #include <cstdlib>
+#define NO_PQUEUE_DEBUG
 #include "PriorityQueue.h"
 
 
@@ -171,8 +172,9 @@ public:
     template <typename Reporter>
     This& run (size_t iterations, const Reporter& report) {
         items.clear();
-        for (size_t i = iterations; i --> 0; ) {
+        for (size_t i = 0; i < iterations; ++i) {
             items.emplace_back();
+            static_cast<This&>(*this).before(i, items[i], data);
         }
         size_t i = 0;
         report(iterations, benchmark(iterations, [&](){
@@ -183,7 +185,7 @@ public:
     }
     This& runSuite (std::initializer_list<std::pair<size_t, size_t>> counts) {
         LocalMemoryTracer memoryTracer;
-        double expected = 60e-9;
+        double expected = 5e-9;
 
         srand(time(nullptr));
         for (const auto& pair : counts) {
@@ -197,10 +199,11 @@ public:
                 Seconds projected { expected * count };
                 Bytes usedMemory { (size_t)(memoryTracer.usedMemory / iterations) };
                 double usedAllocs = (double)memoryTracer.usedAllocs / iterations;
+
                 double percentDifference = (duration.seconds - projected.seconds) / projected.seconds * 100;
 
                 std::cout 
-                    << "push count: " << std::setw(9) << count
+                    << "pop count: " << std::setw(9) << count
                     << " time: " << std::setw(8) << duration << " / run"
                     << " (expected " << std::setw(8) << Seconds(expected * count) 
                     << " " << std::setw(4) << (int)percentDifference << "%)"
@@ -217,12 +220,22 @@ public:
 };
 
 template <typename T>
-struct PriorityQueuePushBenchmark : public PriorityQueueBenchmark<T, PriorityQueuePushBenchmark<T>> {
+struct PriorityQueuePopBenchmark : public PriorityQueueBenchmark<T, PriorityQueuePopBenchmark<T>> {
     T accumulator;
-    void run (size_t i, PriorityQueue<T>& queue, const std::vector<T>& data) {
+    void before (size_t i, PriorityQueue<T>& queue, const std::vector<T>& data) {
         // std::cout << data.size() << " elements\n";
         for (const auto& element : data) {
             queue.push(element);
+        }
+        // queue.debugOnSwap([](const PriorityQueue<T>& queue) {
+        //     std::cout << queue << '\n';
+        // });
+        // accumulator += queue.size();
+        // std::cout << queue << '\n';
+    }
+    void run (size_t i, PriorityQueue<T>& queue, const std::vector<T>& data) {
+        while (!queue.empty()) {
+            queue.pop();
         }
         accumulator += queue.size();
         // std::cout << queue << '\n';
@@ -237,15 +250,15 @@ int main () {
               << "Programmer's id: M00202623\n"
               << "File: " __FILE__ "\n\n";
 
-    PriorityQueuePushBenchmark<double>()
+    PriorityQueuePopBenchmark<double>()
         .runSuite({
             { 1,  1000 }, 
             { 10, 1000 }, 
             { 100, 1000 },
-            { 1000, 100 },
+            { 1000, 1000 },
             { 10000, 100 },
-            { 100000, 10 },
-            { 1000000, 10 },
+            { 100000, 5 },
+            { 1000000, 2 },
             { 10000000, 1 },
             // { 100000000, 1 },
         })

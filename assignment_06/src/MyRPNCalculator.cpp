@@ -31,6 +31,8 @@
 #include <iostream>
 #include <string>
 #include <regex>
+#include <memory>
+#include <functional>
 using namespace std;
 
 #include <cstdlib>
@@ -110,6 +112,291 @@ T popBack (Stack<T>& stack, T default_ = T()) {
     return back;
 }
 
+struct InterpreterState;
+struct Type;
+
+struct Value {
+    virtual ~Value () {}
+    virtual const Type& type () const = 0;
+    virtual void repr (std::ostream&) const = 0;
+    virtual int  cmp  (const Value&)  const = 0;
+};
+typedef std::unique_ptr<Value> ValuePtr;
+
+template <typename T, typename... Args>
+ValuePtr makeValue (Args... args) { return ValuePtr(static_cast<Value*>(new T(args...))); }
+
+template <typename T>
+T& as (ValuePtr& value) {
+    return *dynamic_cast<T*>(value.get());
+}
+template <typename T>
+T& as (Value& value) {
+    return *dynamic_cast<T*>(&value);
+}
+template <typename T>
+const T& as (const Value& value) {
+    return *dynamic_cast<const T*>(&value);
+}
+
+class Type : Value {
+    const std::string name;
+    int               id;
+    static int nextId;
+public:
+    Type (const std::string& name) : name(name), id(nextId++) {}
+    const Type& type () const override;
+    void  repr (std::ostream& os) const override { os << name; }
+    
+    int cmp (const Type& other) const {
+        return id - other.id;
+    }
+    int cmp (const Value& other) const override {
+        return type().cmp(other.type()) || 
+            (id - as<Type>(other).id);
+    }
+    friend bool operator== (const Type& a, const Type& b) { return a.id == b.id; }
+    friend bool operator!= (const Type& a, const Type& b) { return a.id != b.id; }
+};
+int Type::nextId = 0;
+
+
+// Global type instances for builtin types.
+// This forms the foundation of our dynamic type system (similar to python):
+//  type(10) => number, type(number) => type, type(type) => type
+//
+Type gt_nil     { "nil" };
+Type gt_type    { "type"   };
+Type gt_number  { "number" };
+Type gt_string  { "string" };
+Type gt_bool    { "bool"   };
+Type gt_block   { "block"  };
+Type gt_builtin { "builtin" };
+Type gt_list    { "list" };
+Type gt_dict    { "dict" };
+
+const Type& Type::type () const { return gt_type; }
+
+struct Nil : Value {
+    const Type& type () const override { return gt_nil;  }
+    void repr (std::ostream& os) const override { os << "nil"; }
+    int cmp (const Value& other) const override {
+        return type().cmp(other.type());
+    }
+} nil;
+struct Number : Value {
+    double value;
+
+    Number (double value) : value(value) {}
+    const Type& type () const override { return gt_number; }
+    void repr (std::ostream& os) const override { os << value; }
+    int cmp (const Value& other) const override {
+        return type().cmp(other.type()) ||
+            (value > as<Number>(other).value ? 1 : value < as<Number>(other).value ? -1 : 0);
+    }
+};
+struct Bool : Value {
+    bool value;
+
+    Bool (bool value) : value(value) {}
+    const Type& type () const override { return gt_bool; }
+    void repr (std::ostream& os) const override { os << (value ? "true" : "false"); }
+    int cmp (const Value& other) const override {
+        return type().cmp(other.type()) ||
+            (value == as<Bool>(other).value ? 0 : -1);
+    }
+};
+struct String : Value {
+    std::string value;
+
+    String (std::string value) : value(value) {}
+    const Type& type () const override { return gt_string; }
+    void repr (std::ostream& os) const override { os << '"' << value << '"'; }
+    int cmp (const Value& other) const override {
+        return type().cmp(other.type()) ||
+            value.compare(as<String>(other).value);
+    }
+};
+struct Block : Value {
+    std::string code;
+
+    Block (std::string code) : code(code) {}
+    const Type& type () const override { return gt_block; } 
+    void repr (std::ostream& os) const override { os << '{' << code << '}'; }
+    int cmp (const Value& other) const override {
+        return type().cmp(other.type()) ||
+            code.compare(as<Block>(other).code);
+    }
+};
+struct Builtin : Value {
+    std::string name;
+    void (*builtin)(InterpreterState&);
+
+    Builtin (std::string name, void(*builtin)(InterpreterState&)) : name(name), builtin(builtin) {}
+    const Type& type () const override { return gt_builtin; }
+    void repr (std::ostream& os) const override { os << '{' << name << '}'; }
+    int cmp (const Value& other) const override {
+        return type().cmp(other.type()) ||
+            (builtin == as<Builtin>(other).builtin ? 0 : -1);
+    }
+};
+struct List : Value {
+    const Type& type () const override { return gt_list; }
+    void repr (std::ostream& os) const override {}
+    int cmp (const Value& other) const override {
+        int rv = -1; return type().cmp(other.type()) || rv;
+    }
+};
+struct Dict : Value {
+    const Type& type () const override { return gt_dict; }
+    void repr (std::ostream& os)  const override {}
+    int cmp (const Value & other) const override {
+        int rv = -1; return type().cmp(other.type()) || rv;
+    }
+    void insert (const std::string& key, ValuePtr&& value) {}
+    int find (const std::string key) { return -1; }
+    int end  () { return 0; }
+};
+
+typedef std::unique_ptr<Dict>  DictPtr;
+
+
+
+struct InterpreterState {
+    Stack<ValuePtr> stack;
+    Stack<DictPtr>  dict_stack;
+
+    // Stack operations
+
+    template <typename T, typename... Args>
+    void push (Args... args) { stack.push(makeValue<T>(args...)); }
+
+    ValuePtr pop () {
+        if (stack.empty()) {
+            return std::unique_ptr<Value>(static_cast<Value*>(new Nil()));
+        } else {
+            auto value = std::move(stack.peek());
+            stack.pop();
+            return value;
+        }
+    }
+
+    // void pushScope () { dict_stack.push(std::move(std::unique_ptr<Dict>(new Dict()))); }
+    void popScope  () { dict_stack.pop(); }
+    void define    () {
+        if (stack.size() >= 2) {
+            auto lhs = pop();
+            auto rhs = pop();
+            if      (lhs->type() == gt_string) { dict_stack.peek()->insert(as<String>(lhs).value, std::move(rhs)); }
+            else if (rhs->type() == gt_string) { dict_stack.peek()->insert(as<String>(rhs).value, std::move(lhs)); }
+            else {
+                // stack.push(std::move(rhs));
+                // stack.push(std::move(lhs));
+            }
+        }
+    }
+    void define (std::string name, void (*fcn)(InterpreterState&)) {
+        dict_stack.peek()->insert(name, makeValue<Builtin>(name, fcn));
+    }
+    // Value& lookup (std::string name) {
+    //     auto it = dict_stack.peek()->find(name);
+    //     if (it != dict_stack.peek()->end()) {
+    //         return it->get();
+    //     } else {
+    //         return static_cast<Value&)(nil);
+    //     }
+    // }
+
+    void interpret (const std::string& code) {
+        // ...
+    }
+
+    template <typename A, typename B>
+    void exec (std::function<void(A&,B&)> fcn, bool allowSwappedOperands = false) {
+        if (stack.size() >= 2) {
+            auto lhs = pop();
+            auto rhs = pop();
+            if (lhs->type() == A::type() && rhs->type() == B::type()) { fcn(*as<A>(lhs), *as<B>(rhs)); return; }
+            else if (!allowSwappedOperands) {}
+            else if (rhs->type() == A::type() && lhs->type() == B::type()) { fcn(*as<A>(rhs), *as<B>(lhs)); return; }
+        }
+    }
+    template <typename... Args>
+    std::function<void(InterpreterState&)> delayedExec (Args... args) {
+        return [args...](InterpreterState& interpreter){
+            interpreter.exec(args...);
+        };
+    }
+
+    void setupBuiltins () {
+        define("+",    delayedExec([this](Number& a, Number& b){ push<Number>(a.value + b.value); }));
+        define("-",    delayedExec([this](Number& a, Number& b){ push<Number>(a.value - b.value); }));
+        define("*",    delayedExec([this](Number& a, Number& b){ push<Number>(a.value * b.value); }));
+        define("/",    delayedExec([this](Number& a, Number& b){ push<Number>(a.value / b.value); }));
+        define("^",    delayedExec([this](Number& a, Number& b){ push<Number>(pow(a.value, b.value)); }));
+        define("sqrt", delayedExec([this](Number& a){ push<Number>(sqrt(a)); }));
+        define("log",  delayedExec([this](Number& a){ push<Number>(log(a)); }));
+
+        define("define", [](InterpreterState& interpreter){ interpreter.define(); });
+        define("dup",    [](InterpreterState& interpreter){ interpreter.stack.push(interpreter.stack.peek()); });
+    }
+    {    
+        int x = 10;
+        std::function<T(T,T)> plus = [x](T a, T b) -> T { return x + a + b; }
+
+        plus(a, b);
+        plus = Functor(x);
+        plus(a, b);
+    }
+
+    T(*fcn_ptr)(T,T); 
+};
+
+struct Functor : Foo {
+    int x;
+    Functor (int x) : x(x) {}
+    T operator ()(T a, T b) { return a + b; }
+};
+{
+    Functor foo;
+    Foo* f = static_cast<Foo*>(&foo);
+}
+
+struct Foo {
+    // virtual ~Foo () {}
+    virtual dtor (Foo&) {}
+};
+
+struct Foo {
+    Foo_vtbl* vtbl;
+    // members...
+
+    struct Foo_vtbl {
+        void (*dtor)(Foo&);
+    };
+};
+
+struct IAnimal {
+    virtual void speak () = 0;
+};
+struct Dog : IAnimal {
+    void speak () override { std::cout << "woof!" << std::endl; }
+};
+struct Cat : IAnimal {
+    void speak () override { std::cout << "meow!" << std::endl; }
+};
+
+void example () {
+    std::vector<IAnimal*> animals;
+    animals.push_back((IAnimal*)new Dog());
+    animals.push_back(static_cast<IAnimal*>(new Cat()));
+
+    for (auto animal : animals) {
+        animal->speak();
+    }
+}
+
+
 int main () {
     std::cout << "Programmer:       Seiji Emery\n";
     std::cout << "Programmer's ID:  M00202623\n";
@@ -177,9 +464,9 @@ int main () {
                     break;
                 case 's': 
                     if (token == "swap" && values.size() >= 2) { 
-                        values.swap();
-                        // auto top = popBack(values), btm = popBack(values); 
-                        // values.push(top); values.push(btm);
+                        // values.swap();
+                        auto top = popBack(values), btm = popBack(values); 
+                        values.push(top); values.push(btm);
                     } else if (token == "sin" && values.size() >= 1) {
                         values.push(sin(popBack(values)));
                     } else if (token == "sqrt") {
