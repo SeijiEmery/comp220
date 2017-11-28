@@ -92,47 +92,62 @@ struct ServerConfig {
 struct Customer {
 private:
     static char nextId;
+    static size_t nextOrd;
 public:
     char   id;
-    size_t arrivalTime;
-    size_t serviceEndTime;
+    size_t order = 0;
 
-    Customer () : id('#'), arrivalTime(0), serviceEndTime(0) {}
-    Customer (size_t arrivalTime, size_t serviceEndTime)
-        : id(nextId = ((nextId+1 - 'A') % 26) + 'A'),
-          arrivalTime(arrivalTime), serviceEndTime(serviceEndTime) 
+    // Customer () : id('#') {}
+    Customer ()
+        : id(nextId = ((nextId+1 - 'A') % 26) + 'A')
+        , order(nextOrd++)
     {}
     Customer (const Customer&) = default;
     Customer& operator= (const Customer&) = default;
     friend std::ostream& operator << (std::ostream& os, const Customer& customer) {
         return os << customer.id;
     }
-    bool operator> (const Customer& other) {
-        return id > other.id;
-    }
-    bool operator>= (const Customer& other) {
-        return id >= other.id;
-    }
+    bool operator> (const Customer& other) { return order > other.order; }
+    bool operator>= (const Customer& other) { return order >= other.order; }
 };
 char Customer::nextId = 'Z';
+size_t Customer::nextOrd = 0;
 
 class Server {
     bool        isBusy = false;
     Customer    customer;
 public:
     bool busy () const { return isBusy; }
-    void simulate (size_t time) {
-        isBusy = time < customer.serviceEndTime;
-    }
-    void serve (Customer customer_, size_t currentTime, size_t serviceDuration) {
+    void serve (Customer customer_) {
         customer = customer_;
-        customer.serviceEndTime = currentTime + serviceDuration;
-        simulate(currentTime);
+        isBusy = true;
+    }
+    void endService () {
+        isBusy = false;
     }
     friend std::ostream& operator << (std::ostream& os, const Server& server) {
         return os << (server.busy() ? server.customer.id : '-');
     }
 };
+
+struct ServiceEvent {
+    size_t server;
+    size_t timestamp;
+public:
+    ServiceEvent (decltype(server) server, decltype(timestamp) timestamp)
+        : server(server), timestamp(timestamp) {}
+    friend std::ostream& operator << (std::ostream& os, const ServiceEvent& event) {
+        return os << "event { server = " << event.server << ", time = " << event.timestamp << " }";
+    } 
+
+    bool operator> (const ServiceEvent& other) {
+        return timestamp < other.timestamp;
+    }
+    bool operator>= (const ServiceEvent& other) {
+        return timestamp <= other.timestamp;
+    }
+};
+
 
 // Given an average event rate and probability threshold on [0, 1], calculates the number of events 
 // that would have occured per unit time
@@ -155,9 +170,10 @@ template <typename T> T randRange (T min, T max) {
 }
 
 class Simulation {
-    ServerConfig            config;
-    std::vector<Server>     servers;
-    PriorityQueue<Customer> waitQueue;
+    ServerConfig                config;
+    std::vector<Server>         servers;
+    PriorityQueue<ServiceEvent> eventQueue;
+    PriorityQueue<Customer>     waitQueue;
     size_t                  currentTime = 0;
     bool                    isRunning = true;
 public:
@@ -189,6 +205,7 @@ private:
     }
     void display () {
         std::cout << "Time: " << currentTime << '\n';
+        // std::cout << "Service queue: " << eventQueue << '\n';
         std::cout << "-----------------------------\n";
         std::cout << "server now-serving wait-queue\n";
         std::cout << "------ ----------- ----------\n";
@@ -207,26 +224,31 @@ private:
         std::cout << "-----------------------------\n";
     }
     void simulateStep () {
-        for (auto& server : servers) {
-            server.simulate(currentTime);
-        }
         if (currentTime < config.arrivalEndTime) {
             // Create new arrivals and push to waitQueue
             size_t arrivals = poisson_k(config.arrivalRate, randUniform<double>());
             while (arrivals-- && waitQueue.size() < config.maxQueueLength) {
-                waitQueue.push(Customer(currentTime, 0)); 
+                waitQueue.push(Customer()); 
             }
         }
 
-        // Move any pending customers to non-busy servers
-        if (!waitQueue.empty()) {
-            for (auto& server : servers) {
-                if (!server.busy()) {
-                    server.serve(waitQueue.peek(), currentTime,
-                        randRange(static_cast<double>(config.minServiceTime), static_cast<double>(config.maxServiceTime)));
-                    waitQueue.pop();
-                    if (waitQueue.empty()) break;
-                }
+        // Process scheduled events
+        while (!eventQueue.empty() && eventQueue.peek().timestamp == currentTime) {
+            servers[eventQueue.peek().server].endService();
+            eventQueue.pop();
+        }
+
+        // Dispatch new events, where possible
+        for (size_t i = 0; !waitQueue.empty() && i < servers.size(); ++i) {
+            if (!servers[i].busy()) {
+                auto delay = randRange(
+                    static_cast<double>(config.minServiceTime), 
+                    static_cast<double>(config.maxServiceTime)
+                );
+
+                eventQueue.push({ i, currentTime + (size_t)delay });
+                servers[i].serve(waitQueue.peek());
+                waitQueue.pop();
             }
         }
 
