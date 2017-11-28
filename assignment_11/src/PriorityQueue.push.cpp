@@ -130,7 +130,27 @@ struct LocalMemoryTracer {
     }
 };
 
-
+struct Bytes {
+    size_t bytes;
+    Bytes (size_t bytes) : bytes(bytes) {}
+    friend std::ostream& operator<< (std::ostream& os, const Bytes& self) {
+        if (self.bytes < (1UL << 10)) return os << self.bytes << " bytes";
+        if (self.bytes < (1UL << 20)) return os << (self.bytes * 1e-3) << " KB";
+        if (self.bytes < (1UL << 30)) return os << (self.bytes * 1e-6) << " MB";
+        if (self.bytes < (1UL << 40)) return os << (self.bytes * 1e-9) << " GB";
+        return os << (self.bytes * 1e-12) << " TB";
+    }
+};
+struct Seconds {
+    double seconds;
+    Seconds (double seconds) : seconds(seconds) {}
+    friend std::ostream& operator<< (std::ostream& os, const Seconds& self) {
+        if (self.seconds > 1.0)  return os << self.seconds << " sec";
+        if (self.seconds > 1e-3) return os << (self.seconds * 1e3) << " ms";
+        if (self.seconds > 1e-6) return os << (self.seconds * 1e6) << " µs";
+        return os << (self.seconds * 1e9) << " ns";
+    }
+};
 
 
 template <typename T, typename This>
@@ -173,14 +193,16 @@ public:
             memoryTracer.enter();
             run(iterations, [&](size_t iterations, double benchDuration /* seconds */) {
                 memoryTracer.exit();
-                double usedMemory = (double)memoryTracer.usedMemory / iterations;
+                Seconds duration { benchDuration };
+                Bytes usedMemory { (size_t)(memoryTracer.usedMemory / iterations) };
                 double usedAllocs = (double)memoryTracer.usedAllocs / iterations;
 
                 std::cout 
                     << "push count: " << std::setw(9) << count
-                    << " time: " << std::setw(8) << (benchDuration * 1e3) << " ms / run "
-                    << " (expected " << std::setw(8) << (expected * count * 1e3) << " ms) "
-                    << " memory " << std::setw(8) << (usedMemory * 1e-6) << " MB, "
+                    << " time: " << std::setw(8) << duration << " / run"
+                    << " (expected " << std::setw(8) << Seconds(expected * count) << ")"
+                    << "  iteration(s): " << std::setw(4) << iterations
+                    << "  memory: " << std::setw(8) << usedMemory << " "
                     << std::setw(3) << (int)usedAllocs << " allocation(s)"
                     << std::endl;
                 expected = benchDuration / count;
