@@ -14,6 +14,7 @@ using namespace std;
 #include <cstdlib>
 #include "PriorityQueue.h"
 
+
 class BenchResult {
     clock_t startTime, endTime;
     bool started = false, stopped = false;
@@ -54,81 +55,6 @@ double benchmark (size_t iterations, const F& inner) {
     return duration / static_cast<double>(iterations);
 }
 
-template <typename T, typename This>
-class PriorityQueueBenchmark {
-    std::vector<PriorityQueue<T>> items;
-    std::vector<T>                data;
-public:
-    // resize / re-fill input data
-    template <typename Generator>
-    This& generate (size_t count, const Generator& generator) {
-        data.clear();
-        data.reserve(count);
-        for (size_t i = count; i --> 0; ) {
-            data.push_back(generator());
-        }
-        return static_cast<This&>(*this);
-    }
-    template <typename Reporter>
-    This& run (size_t iterations, const Reporter& report) {
-        items.clear();
-        for (size_t i = iterations; i --> 0; ) {
-            items.emplace_back();
-        }
-        size_t i = 0;
-        report(iterations, benchmark(iterations, [&](){
-            static_cast<This&>(*this).run(i, items[i], data); 
-            ++i;
-        }));
-        return static_cast<This&>(*this);
-    }
-    This& runSuite (std::initializer_list<std::pair<size_t, size_t>> counts) {
-        for (const auto& pair : counts) {
-            size_t count = pair.first, iterations = pair.second;
-            srand(time(nullptr));
-            generate(count, [](){ return static_cast<T>(rand() % 2048 - 1024); });
-            run(iterations, [&](size_t iterations, double benchDuration /* seconds */) {
-                std::cout << "Ran " << iterations << " iterations, total " 
-                    << benchDuration 
-                    << " each " << (benchDuration / count * 1e6) << " µs "
-                    << " for " << count << " element(s)\n";
-            });
-        }
-        return static_cast<This&>(*this);
-    }
-};
-
-template <typename T>
-struct PriorityQueuePushBenchmark : public PriorityQueueBenchmark<T, PriorityQueuePushBenchmark<T>> {
-    T accumulator;
-    void run (size_t i, PriorityQueue<T>& queue, const std::vector<T>& data) {
-        // std::cout << data.size() << " elements\n";
-        for (const auto& element : data) {
-            queue.push(element);
-        }
-        accumulator += queue.size();
-        // std::cout << queue << '\n';
-    }
-    void info () {
-        std::cout << accumulator << '\n';
-    }
-};
-
-int main () {
-    PriorityQueuePushBenchmark<double>()
-        .runSuite({
-            { 1,  1000 }, 
-            { 100, 1000 },
-            { 1000, 100 },
-            { 10000, 100 },
-            { 100000, 10 },
-            { 1000000, 10 },
-            { 10000000, 1 },
-            // { 100000000, 1 },
-        })
-        .info();
-}
-
 //
 // Memory + time benchmarking code: this hijacks (overloads) global new / delete
 // to trace memory allocations (very simple: # of allocations / frees + # bytes
@@ -165,6 +91,8 @@ public:
         std::cout << "Freed memory: "   << ((double)freedMem)     * 1e-6 << " MB (" << numFrees       << " deallocations)\n";
         std::cout << "Ran in " << duration_cast<duration<double>>(t1 - t0).count() * 1e3 << " ms\n";
     }
+    size_t totalMemory () const { return allocatedMem; }
+    size_t totalAllocations () const { return numAllocations;  }
 } g_memTracer;
 
 void* operator new (size_t size) throw(std::bad_alloc) {
@@ -183,4 +111,114 @@ void operator delete (void* mem) throw() {
 }
 
 #endif // NO_MEM_DEBUG
+
+
+struct LocalMemoryTracer {
+    size_t initialMemory = 0;
+    size_t initialAllocs = 0;
+    size_t usedMemory = 0;  // # bytes of memory allocated
+    size_t usedAllocs = 0;  // # allocations
+
+    void enter () {
+        initialMemory = g_memTracer.totalMemory();
+        initialAllocs = g_memTracer.totalAllocations();
+    }
+    void exit () {
+        usedMemory = g_memTracer.totalMemory() - initialMemory;
+        usedAllocs = g_memTracer.totalAllocations() - initialAllocs;
+    }
+};
+
+
+
+
+template <typename T, typename This>
+class PriorityQueueBenchmark {
+    std::vector<PriorityQueue<T>> items;
+    std::vector<T>                data;
+public:
+    // resize / re-fill input data
+    template <typename Generator>
+    This& generate (size_t count, const Generator& generator) {
+        data.clear();
+        data.reserve(count);
+        for (size_t i = count; i --> 0; ) {
+            data.push_back(generator());
+        }
+        return static_cast<This&>(*this);
+    }
+    template <typename Reporter>
+    This& run (size_t iterations, const Reporter& report) {
+        items.clear();
+        for (size_t i = iterations; i --> 0; ) {
+            items.emplace_back();
+        }
+        size_t i = 0;
+        report(iterations, benchmark(iterations, [&](){
+            static_cast<This&>(*this).run(i, items[i], data); 
+            ++i;
+        }));
+        return static_cast<This&>(*this);
+    }
+    This& runSuite (std::initializer_list<std::pair<size_t, size_t>> counts) {
+        LocalMemoryTracer memoryTracer;
+
+        for (const auto& pair : counts) {
+            size_t count = pair.first, iterations = pair.second;
+            srand(time(nullptr));
+
+            generate(count, [](){ return static_cast<T>(rand() % 2048 - 1024); });
+            
+            memoryTracer.enter();
+            run(iterations, [&](size_t iterations, double benchDuration /* seconds */) {
+                memoryTracer.exit();
+                std::cout << "Ran " << iterations << " iterations, total " 
+                    << benchDuration 
+                    << " each " << (benchDuration / count * 1e6) << " µs"
+                    << " used memory " << (memoryTracer.usedMemory * 1e-6) << " MB, "
+                    << memoryTracer.usedAllocs << " allocation(s)"
+                    << " for " << count << " element(s)\n";
+                memoryTracer.exit();
+            });
+        }
+        return static_cast<This&>(*this);
+    }
+};
+
+template <typename T>
+struct PriorityQueuePushBenchmark : public PriorityQueueBenchmark<T, PriorityQueuePushBenchmark<T>> {
+    T accumulator;
+    void run (size_t i, PriorityQueue<T>& queue, const std::vector<T>& data) {
+        // std::cout << data.size() << " elements\n";
+        for (const auto& element : data) {
+            queue.push(element);
+        }
+        accumulator += queue.size();
+        // std::cout << queue << '\n';
+    }
+    void info () {
+        std::cout << accumulator << '\n';
+    }
+};
+
+int main () {
+    std::cout << "Programmer: Seiji Emery\n"
+              << "Programmer's id: M00202623\n"
+              << "File: " __FILE__ "\n\n";
+              
+    PriorityQueuePushBenchmark<double>()
+        .runSuite({
+            { 1,  1000 }, 
+            { 100, 1000 },
+            { 1000, 100 },
+            { 10000, 100 },
+            { 100000, 10 },
+            { 1000000, 10 },
+            { 10000000, 1 },
+            // { 100000000, 1 },
+        })
+        .info();
+}
+
+
 
