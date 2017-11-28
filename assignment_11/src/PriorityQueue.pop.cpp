@@ -1,9 +1,9 @@
 // Programmer: Seiji Emery
 // Programmer ID: M00202623
 //
-// PriorityQueue.push.cpp
+// PriorityQueue.pop.cpp
 //
-// PriorityQueue timing test (push operations)
+// PriorityQueue timing test (pop operations)
 //
 
 #include <iostream>

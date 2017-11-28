@@ -22,14 +22,28 @@ endif()
 add_executable(testdriver       src/PriorityQueue.TestDriver.cpp)
 add_executable(simulation       src/Simulation11.cpp)
 add_executable(itest            src/PriorityQueueTest.cpp)
+add_executable(push_test        src/PriorityQueue.push.cpp)
+add_executable(pop_test         src/PriorityQueue.pop.cpp)
 
 add_custom_target(run
     COMMAND ./simulation
     DEPENDS simulation)
 
+add_custom_target(setup
+    COMMAND ./simulation setup
+    DEPENDS simulation)
+
 add_custom_target(test
     COMMAND ./testdriver
     DEPENDS testdriver)
+
+add_custom_target(push
+    COMMAND ./push_test
+    DEPENDS push_test)
+
+add_custom_target(pop
+    COMMAND ./pop_test
+    DEPENDS pop_test)
 
 add_custom_target(interactive
     COMMAND ./itest
