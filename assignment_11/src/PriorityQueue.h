@@ -1,3 +1,14 @@
+// Programmer: Seiji Emery
+// Programmer ID: M00202623
+//
+// PriorityQueue.h
+//
+// Implements a priority queue / heap. Uses std::vector internally so we're not dependent on
+// DynamicArray.h (though it would be trivial to swap it out for that if necessary).
+//
+// remote source: https://github.com/SeijiEmery/comp220/blob/master/assignment_11/src/PriorityQueue.h
+//
+
 
 #ifndef PriorityQueue_h
 #define PriorityQueue_h

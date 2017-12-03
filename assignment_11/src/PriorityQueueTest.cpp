@@ -1,13 +1,13 @@
 // Programmer: Seiji Emery
 // Programmer ID: M00202623
 //
-// TestKV.cpp
-// Implements a set of interactive tests for AssociativeArray by implementing
+// PriorityQueueTest.cpp
+// Implements a set of interactive tests for PriorityQueue by implementing
 // an interactive REPL w/ a simple regex-based DSL for manipulating a single
-// AssociativeArray<string, string>.
+// PriorityQueue<int>
 //
 // Remote source:
-// https://github.com/SeijiEmery/comp220/tree/master/assignment_09/src/KVTest.hpp
+// https://github.com/SeijiEmery/comp220/tree/master/assignment_11/src/PriorityQueueTest.cpp
 //
 
 

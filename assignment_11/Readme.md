@@ -9,10 +9,11 @@ Implements a heap / priority queue, used in:
 ## Build Instructions:
     cd <some-temp-dir>
     git clone https://github.com/SeijiEmery/comp220
-    cd comp220/assignment_09/
+    cd comp220/assignment_11/
     mkdir build; cd build
     unzip ../../data/dvc-schedule.txt.zip
     cmake .. -DCMAKE_BUILD_TYPE=Release
+    make setup
 
 ### To run the simulation:
     make run
