@@ -1,13 +1,13 @@
 // Programmer: Seiji Emery
 // Programmer ID: M00202623
 //
-// Simulation11.cpp
+// BetterSimulation.cpp
 //
 // Implements a simpler server simulation using our PriorityQueue implementation.
 // Note: not a real server, not threadsafe, does not do anything or run in
 // real time, etc.
 //
-// remote source: https://github.com/SeijiEmery/comp220/blob/master/assignment_11/src/Simulation11.cpp
+// remote source: https://github.com/SeijiEmery/comp220/blob/master/assignment_11/src/BetterSimulation.cpp
 //
 
 #include <iostream> // std::cout, std::cerr

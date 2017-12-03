@@ -20,7 +20,7 @@ endif()
 
 # executables: main program + testdriver
 add_executable(testdriver       src/PriorityQueue.TestDriver.cpp)
-add_executable(simulation       src/Simulation11.cpp)
+add_executable(simulation       src/BetterSimulation.cpp)
 add_executable(itest            src/PriorityQueueTest.cpp)
 add_executable(push_test        src/PriorityQueue.push.cpp)
 add_executable(pop_test         src/PriorityQueue.pop.cpp)
