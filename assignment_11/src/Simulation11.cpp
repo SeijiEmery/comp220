@@ -138,7 +138,7 @@ public:
         : server(server), timestamp(timestamp) {}
     friend std::ostream& operator << (std::ostream& os, const ServiceEvent& event) {
         return os << "event { server = " << event.server << ", time = " << event.timestamp << " }";
-    } 
+    }
 
     bool operator> (const ServiceEvent& other) {
         return timestamp < other.timestamp;
@@ -220,6 +220,18 @@ private:
                 }
             }
             std::cout << '\n';
+        }
+        if (eventQueue.empty()) {
+            std::cout << "No scheduled end-of-service events at this time\n";
+        } else {
+            std::cout << "Next scheduled end-of-service event in " 
+                << (eventQueue.peek().timestamp - currentTime) << " minute(s)\n";
+            std::cout << "End-of-service events: \n";
+
+            for (auto temp = eventQueue; !temp.empty(); temp.pop()) {
+                const auto& event = temp.peek();
+                std::cout << "   " << servers[event.server] << " in " << (event.timestamp - currentTime) << " minute(s)\n";
+            }
         }
         std::cout << "-----------------------------\n";
     }
