@@ -18,8 +18,14 @@ else()
 endif()
 
 include_directories(src ../assignment_10/src)    # HashTable.h
+
 add_executable(game_of_life src/GameOfLife.cpp)
+add_executable(game_of_life_map src/GameOfLifeMap.cpp)
 
 add_custom_target(run
     COMMAND ./game_of_life
     DEPENDS game_of_life)
+
+add_custom_target(run_map
+    COMMAND ./game_of_life_map
+    DEPENDS game_of_life_map)
