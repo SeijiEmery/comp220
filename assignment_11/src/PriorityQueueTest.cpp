@@ -13,6 +13,7 @@
 
 #include <iostream>     // std::cout, std::cin
 #include <sstream>      // std::stringstream
+#include <fstream>      // std::ifstream
 #include <string>       // std::string
 #include <regex>        // std::regex, std::regex_search, std::smatch
 #include <vector>       // std::pair
@@ -106,7 +107,7 @@ public:
     void parse (std::istream& is) const {
         std::string line;
         std::smatch match;
-        while (is) {
+        while (is && !is.eof()) {
             while (!getline(is, line));
             while (parse(line, match));
         }
@@ -257,7 +258,7 @@ template <typename Queue>
 auto make_queue_range (const Queue& queue) -> QueueRange<Queue> { return { queue }; }
 
 
-int main () {
+int main (int argc, const char** argv) {
     typedef std::smatch Match;
     PriorityQueue<int> queue;
     auto const show = [&]() {
@@ -270,17 +271,73 @@ int main () {
     auto const debug = [&](const PriorityQueue<int>& queue) {
         warn() << queue;
     };
+    auto const print_help = []() {
+        std::cout << SET_GREEN
+            << "Interactive priority-queue (heap) test."
+            << "\nSupports the following operations, all of which can be chained:"
+            << "\n    {enter number}      - push onto queue"
+            << "\n    .                   - pop item from queue (can be chained)"
+            << "\n    *                   - push random integer onto queue (can be chained)"
+            << "\n    show                - prints queue elements (in heap order)"
+            << "\n    empty               - prints true / false if queue empty"
+            << "\n    size                - prints queue size"
+            << "\n    peek                - prints top element"
+            << "\n    pop                 - same as ."
+            << "\n    push {element}      - same as {element}"
+            << "\n    clear               - clears queue"
+            << "\n    sorted              - prints sorted elements"
+            << "\n    printline [on|off]  - if enabled, shows queue after each push / pop operation"
+            << "\n    debug [on | off]    - turn further debugging on / off (show after each mutation)"
+            << "\n    quit                - exits program, shows mem stats"
+            << "\n    help                - prints this message"
+            << CLEAR_COLOR "\n";
+    };
+    
+    bool printLine = true;
+    bool shouldPrintHelp = true;
 
+    // Parse command-line args
+    std::stringstream cmd_args;
+    for (int i = 1; i < argc; ++i) {
+        cmd_args << argv[i] << ' ';
+    }
+    cmd_args << '\0';
+    SimpleRegexParser()
+        .caseOf("--help on",  [&](Match match) { shouldPrintHelp = true;  })
+        .caseOf("--help off", [&](Match match) { shouldPrintHelp = false; })
+        .caseOf("--print on", [&](Match match) { printLine = true; })
+        .caseOf("--print off", [&](Match match) { printLine = false; })
+        .caseOf("-- {}", [&](Match match) { warn() << "Unhandled argument '" << match[0].str() << "'"; })
+        .caseOf("{}", [&](Match match) { warn() << "Unhandled argument '" << match[0].str() << "'"; })
+        .parse(cmd_args);
+
+
+    // Run program / interpreter
+    if (shouldPrintHelp) {
+        print_help();
+    }
     SimpleRegexParser()
         .caseOf("quit", [&](Match match) {
             warn() << "exiting";
             exit(0);
+        })
+        .caseOf("help", [&](Match match) {
+            print_help();
         })
         .caseOf("debug on", [&](Match match) {
             queue.debugOnSwap(debug);
         })
         .caseOf("debug off", [&](Match match) {
             queue.debugOnSwap(nullptr);
+        })
+        .caseOf("printline on", [&](Match match) {
+            printLine = true;
+        })
+        .caseOf("printline off", [&](Match match) {
+            printLine = false;
+        })
+        .caseOf("printline", [&](Match match) {
+            report() << (printLine ? "enabled" : "disabled");
         })
         .caseOf("empty", [&](Match match) {
             report() << (queue.empty() ? "true" : "false");
@@ -299,7 +356,10 @@ int main () {
             if (queue.empty()) {
                 warn() << "queue empty";
             } else {
-                report() << queue.peek(); queue.pop();
+                if (printLine) {
+                    report() << queue.peek(); 
+                }
+                queue.pop();
             }
         })
         .caseOf("push {}", [&](Match match) {
@@ -320,16 +380,25 @@ int main () {
             }
         })
         .caseOf("*", [&](Match match) {
-            queue.push(rand() % 4096 - 2048); show();
+            queue.push(rand() % 4096 - 2048); 
+            if (printLine) {
+                show();
+            }
         })
         .caseOf(".", [&](Match match) {
             if (queue) {
-                report() << queue.peek() << (queue.pop(), " : ") << "[ " << join(", ", map([](int i) { return std::to_string(i); }, queue.begin(), queue.end())) << " ]";
+                if (printLine) {
+                    report() << queue.peek() << (queue.pop(), " : ") << "[ " << join(", ", map([](int i) { return std::to_string(i); }, queue.begin(), queue.end())) << " ]";
+                } else {
+                    queue.pop();
+                }
             }
         })
         .caseOf("{}", [&](Match match) {
             queue.push(atoi(match[1].str().c_str()));
-            report() << "[ " << join(", ", map([](int i) { return std::to_string(i); }, queue.begin(), queue.end())) << " ]";
+            if (printLine) {
+                report() << "[ " << join(", ", map([](int i) { return std::to_string(i); }, queue.begin(), queue.end())) << " ]";
+            }
         })
         .parse(std::cin);
     return 0;

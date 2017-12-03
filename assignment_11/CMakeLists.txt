@@ -19,7 +19,6 @@ endif()
 
 
 # executables: main program + testdriver
-add_executable(testdriver       src/PriorityQueue.TestDriver.cpp)
 add_executable(simulation       src/BetterSimulation.cpp)
 add_executable(itest            src/PriorityQueueTest.cpp)
 add_executable(push_test        src/PriorityQueue.push.cpp)
@@ -33,10 +32,6 @@ add_custom_target(setup
     COMMAND ./simulation setup
     DEPENDS simulation)
 
-add_custom_target(test
-    COMMAND ./testdriver
-    DEPENDS testdriver)
-
 add_custom_target(push
     COMMAND ./push_test
     DEPENDS push_test)
@@ -45,6 +40,6 @@ add_custom_target(pop
     COMMAND ./pop_test
     DEPENDS pop_test)
 
-add_custom_target(interactive
+add_custom_target(test
     COMMAND ./itest
     DEPENDS itest)
