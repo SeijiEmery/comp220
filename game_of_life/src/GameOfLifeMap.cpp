@@ -1,4 +1,13 @@
+// Programmer: Seiji Emery
+// Programmer ID: M00202623
+//
+// GameOfLifeMap.cpp
+//
+// Game of life simulation, modified to use std::map
+//
+
 #include <iostream>
+#include <map>
 using namespace std;
 
 #include <cstdlib>
@@ -9,13 +18,10 @@ struct cell
   int col; // any +/0/- value
 };
 size_t hashCode(const cell& c){return 1009 * c.row + c.col;}
-bool operator==(const cell& a, const cell& b) {return hashCode(a) == hashCode(b);}
-bool operator!=(const cell& a, const cell& b) {return hashCode(a) != hashCode(b);}
+bool operator< (const cell& a, const cell& b) { return hashCode(a) < hashCode(b); }
 
-#include "HashTable.h"
-
-HashTable<cell, char/*, 1000*/> grid(hashCode, 1000); // Older grid of life
-HashTable<cell, char/*, 1000*/> newGrid(hashCode, 1000); // New grid for storing the next generation
+map<cell, char> grid; // Older grid of life
+map<cell, char> newGrid; // New grid for storing the next generation
 
 //Dimensions of the grid with the origin at the center
 const int MINROW = -25;
@@ -31,7 +37,7 @@ int neighborCount(int row, int col)
   for (temp.row = row - 1; temp.row <= row + 1; temp.row++)
     for (temp.col = col - 1; temp.col <= col + 1; temp.col++)
       if (temp.row != row || temp.col != col)
-        if (grid.containsKey(temp))
+        if (grid.find(temp) != grid.end())
           ++count;
   return count;
 }
@@ -65,7 +71,7 @@ void print()
   for (temp.row = MINROW; temp.row <= MAXROW; temp.row++)
   {
     for (temp.col = MINCOL; temp.col <= MAXCOL; temp.col++)
-      if (grid.containsKey(temp))
+      if (grid.find(temp) != grid.end())
         cout << grid[temp];
       else
         cout << ' ';
@@ -90,7 +96,7 @@ void update()
       {
         //If 2 neighbors, cell lives (copy old cell to next gen grid)
         case 2:
-          if (grid.containsKey(temp)) newGrid[temp] = 'X';
+          if (grid.find(temp) != grid.end()) newGrid[temp] = 'X';
           break;
         //Cell with 3 neighbors lives next generation
         case 3:
