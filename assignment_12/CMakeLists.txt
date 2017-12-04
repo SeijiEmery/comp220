@@ -16,7 +16,12 @@ endif()
 
 # executables: main program (myarray) + testdriver
 add_executable(myarray      src/MySortableArray.cpp)
+add_executable(testdriver   src/ArrayTest.cpp)
 
 add_custom_target(run
     COMMAND ./myarray
     DEPENDS myarray)
+
+add_custom_target(test
+    COMMAND ./testdriver
+    DEPENDS testdriver)

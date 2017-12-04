@@ -12,6 +12,17 @@
 #define SortableArray_h
 #include <cassert>
 
+#include <iostream>
+#define SET_COLOR(code) "\033[" code "m"
+#define CLEAR_COLOR SET_COLOR("0")
+#define SET_CYAN    SET_COLOR("36;1")
+#define SET_RED     SET_COLOR("31;1")
+#define SET_GREEN   SET_COLOR("32;1")
+#define SET_YELLOW  SET_COLOR("33;1")
+#define SET_BLUE    SET_COLOR("34;1")
+#define SET_PINK    SET_COLOR("35;1")
+
+
 template <typename T>
 class SortableArray {
     size_t _capacity = 0;
@@ -41,6 +52,62 @@ public:
     // Get / set array elements. Elements out of range returns reference to dummy variable.
     const T& operator[] (int i) const;
     T& operator[] (int i);
+
+
+    size_t sort_end = 0;
+
+    void sort (size_t upperBound) {
+        if (upperBound > capacity()) {
+            upperBound = capacity();
+        }
+        sort_end = upperBound;
+        quicksort(0, upperBound);
+    }
+private:
+    void quicksort (size_t start, size_t end) {
+        if (start < end) {
+            size_t pivot = partition(start, end);
+
+            std::cout << CLEAR_COLOR << "[ ";
+            size_t i = 0;
+            for (; i < start; ++i) {
+                std::cout << (*this)[i] << " ";
+            }
+            std::cout << SET_GREEN;
+            for (; i < pivot; ++i) {
+                std::cout << (*this)[i] << " ";
+            }
+            std::cout << SET_PINK << (*this)[i++] << " " << SET_GREEN;
+            for (; i < end; ++i) {
+                std::cout << (*this)[i] << " ";
+            }
+            std::cout << CLEAR_COLOR;
+            for (; i < sort_end; ++i) {
+                std::cout << (*this)[i] << " ";
+            }
+            std::cout << "]\n";
+
+            quicksort(start, pivot - 1);
+            quicksort(pivot + 1, end);
+        }
+    }
+    size_t partition (size_t left, size_t right) {
+        size_t pivot = left++;
+        std::swap((*this)[pivot], (*this)[(left + right) / 2]);
+        while (true) {
+            while (left < right && (*this)[left]  < (*this)[pivot]) ++left;
+            while (left < right && (*this)[pivot] < (*this)[right]) --right;
+            if (left < right) {
+                std::swap((*this)[left++], (*this)[right--]);
+            } else {
+                if (left > right) {
+                    left = right;
+                }
+                std::swap((*this)[pivot], (*this)[left - 1]);
+                return left;
+            }
+        }
+    }
 };
 
 //
