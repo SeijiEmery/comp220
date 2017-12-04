@@ -1,6 +1,6 @@
 #include <iostream>
 #include <cstdlib>
-#include "SortableArray.h"
+#include "SortableArrayDebug.h"
 
 int main () {
     SortableArray<int> array;
