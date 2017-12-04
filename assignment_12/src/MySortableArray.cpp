@@ -10,6 +10,7 @@
 
 #include <iostream>
 #include <string>
+#include <utility>
 using namespace std;
 
 #include <cstdlib>
@@ -22,12 +23,11 @@ int main () {
     std::cout << "File:             " << __FILE__ << '\n' << std::endl;
 
     // Run main program
-    SortableArray<bool>    keys;   
-    SortableArray<double>  values; 
+    SortableArray<std::pair<bool, double>> values;
     std::string input;
 
+    std::cout << "Enter pairs: (Q to quit)\n";
     do {
-        std::cout << "Input an index and a value [Q to quit]: ";
         std::cin >> input;
         if (input[0] == 'Q' || input[0] == 'q') {
             break;
@@ -35,27 +35,36 @@ int main () {
         int index = atoi(input.c_str());
         std::cin >> input;
         double value = atof(input.c_str());
-
-        keys[index]   = true;
-        values[index] = value;
+        values[index] = { true, value };
     } while (1);
 
-    keys[-1] = false;   // clear out of bounds values...
+    values[-1] = { false, 0 };   // clear out of bounds values...
 
     // Calculate unique user inputs
     int uniqueValuesEntered = 0;
-    for (auto i = 0; i < keys.capacity(); ++i) {
-        if (keys[i]) {
+    for (auto i = 0; i < values.capacity(); ++i) {
+        if (values[i].first) {
             ++uniqueValuesEntered;
         }
     }
 
     // Display all inputs
-    std::cout << "\nYou stored this many values: " << uniqueValuesEntered << '\n';
-    std::cout << "The index-value pairs are:\n";
-    for (auto i = 0; i < keys.capacity(); ++i) {
-        if (keys[i]) {
-            std::cout << ' ' << i << " => " << values[i] << '\n';
+    for (auto i = 0; i < values.capacity(); ++i) {
+        if (values[i].first) {
+            std::cout << ' ' << i << " => " << values[i].second << " ";
+        }
+    }
+    std::cout << '\n';
+
+    std::cout << "Enter number of values to sort: ";
+    std::cin >> input;
+    size_t count = atoi(input.c_str());
+    values.sort(count);
+
+    // Display all inputs
+    for (auto i = 0; i < values.capacity(); ++i) {
+        if (values[i].first) {
+            std::cout << ' ' << i << " => " << values[i].second << " ";
         }
     }
     std::cout << '\n';
@@ -68,8 +77,8 @@ int main () {
             break;
         }
         int index = atoi(input.c_str());
-        if (keys[index]) {
-            std::cout << "Found it -- the value stored in " << index << " is " << values[index] << '\n';
+        if (values[index].first) {
+            std::cout << "Found it -- the value stored in " << index << " is " << values[index].second << '\n';
         } else {
             std::cout << "Sorry, but there is no value stored at " << index << '\n';
         }
