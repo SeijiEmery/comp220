@@ -16,7 +16,7 @@ int main () {
         array.sort(n);
         std::cout << "[ ";
         for (size_t i = 0; i < n; ++i) {
-            std::cout << (array[i] < array[i+1] ? CLEAR_COLOR : SET_RED);
+            std::cout << (array[i] <= array[i+1] ? CLEAR_COLOR : SET_RED);
             std::cout << array[i] << " ";
         }
         std::cout << CLEAR_COLOR "]\n";

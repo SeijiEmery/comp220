@@ -20,6 +20,7 @@
 #define SET_GREEN   SET_COLOR("32;1")
 #define SET_YELLOW  SET_COLOR("33;1")
 #define SET_BLUE    SET_COLOR("34;1")
+#define SET_BLUE_2    SET_COLOR("30;1")
 #define SET_PINK    SET_COLOR("35;1")
 
 
@@ -61,50 +62,85 @@ public:
             upperBound = capacity();
         }
         sort_end = upperBound;
-        quicksort(0, upperBound);
+        quicksort(0, upperBound > 0 ? upperBound - 1 : 0);
     }
 private:
     void quicksort (size_t start, size_t end) {
         if (start < end) {
             size_t pivot = partition(start, end);
 
-            std::cout << CLEAR_COLOR << "[ ";
             size_t i = 0;
-            for (; i < start; ++i) {
-                std::cout << (*this)[i] << " ";
-            }
-            std::cout << SET_GREEN;
-            for (; i < pivot; ++i) {
-                std::cout << (*this)[i] << " ";
-            }
-            std::cout << SET_PINK << (*this)[i++] << " " << SET_GREEN;
-            for (; i < end; ++i) {
-                std::cout << (*this)[i] << " ";
-            }
-            std::cout << CLEAR_COLOR;
-            for (; i < sort_end; ++i) {
-                std::cout << (*this)[i] << " ";
-            }
+            std::cout << CLEAR_COLOR << "[ "; for (; i < start; ++i) { std::cout << (*this)[i] << " "; }
+            std::cout << SET_GREEN;           for (; i < pivot; ++i) { std::cout << (*this)[i] << " "; }
+            std::cout << SET_PINK << (*this)[i++] << " ";
+            std::cout << SET_GREEN;           for (; i <= end; ++i) { std::cout << (*this)[i] << " "; }
+            std::cout << CLEAR_COLOR;         for (; i < sort_end; ++i) { std::cout << (*this)[i] << " "; }
             std::cout << "]\n";
 
-            quicksort(start, pivot - 1);
-            quicksort(pivot + 1, end);
+            if (pivot > 1) {
+                quicksort(start, pivot - 1);
+            }
+            if (pivot + 1 <= end) {
+                quicksort(pivot + 1, end);
+            }
+        } else {
+            size_t i = 0;
+            std::cout << CLEAR_COLOR << "[ "; for (; i < start; ++i) { std::cout << (*this)[i] << " "; }
+            std::cout << SET_PINK << (*this)[i++] << " ";
+            std::cout << CLEAR_COLOR;         for (; i < sort_end; ++i) { std::cout << (*this)[i] << " "; }
+            std::cout << "]\n";
         }
     }
     size_t partition (size_t left, size_t right) {
-        size_t pivot = left++;
-        std::swap((*this)[pivot], (*this)[(left + right) / 2]);
+        // if (right - left <= 1) {
+        //     std::cout << "bail => " << left << ", " << right << "\n";
+        //     return left;
+        // }
+        size_t pivot  = left;
+        size_t middle = (left + right) / 2;
+        std::swap((*this)[pivot], (*this)[middle]); ++left;
         while (true) {
             while (left < right && (*this)[left]  < (*this)[pivot]) ++left;
             while (left < right && (*this)[pivot] < (*this)[right]) --right;
             if (left < right) {
+                
+                size_t i = 0;
+                std::cout << CLEAR_COLOR << "[ "; for (; i < pivot; ++i) { std::cout << (*this)[i] << " "; }
+                std::cout << SET_BLUE    << (*this)[i++] << " ";
+                std::cout << CLEAR_COLOR; for (; i < left; ++i) { std::cout << (*this)[i] << " "; }
+                std::cout << SET_YELLOW  << (*this)[i++] << " ";
+                if (left < right) {
+                    std::cout << CLEAR_COLOR; for (; i < right; ++i) { std::cout << (*this)[i] << " "; }
+                    std::cout << SET_YELLOW   << (*this)[i++] << " ";
+                }
+                std::cout << CLEAR_COLOR; for (; i < sort_end; ++i) { std::cout << (*this)[i] << " "; }
+                std::cout << "]\n";
+
                 std::swap((*this)[left++], (*this)[right--]);
             } else {
-                if (left > right) {
-                    left = right;
+                size_t i = 0;
+                std::cout << CLEAR_COLOR << "[ "; for (; i < pivot; ++i) { std::cout << (*this)[i] << " "; }
+                std::cout << SET_BLUE    << (*this)[i++] << " ";
+                std::cout << CLEAR_COLOR; for (; i < left; ++i) { std::cout << (*this)[i] << " "; }
+                std::cout << SET_YELLOW  << (*this)[i++] << " ";
+                if (left < right) {
+                    std::cout << CLEAR_COLOR; for (; i < right; ++i) { std::cout << (*this)[i] << " "; }
+                    std::cout << SET_YELLOW   << (*this)[i++] << " ";
                 }
-                std::swap((*this)[pivot], (*this)[left - 1]);
-                return left;
+                std::cout << CLEAR_COLOR; for (; i < sort_end; ++i) { std::cout << (*this)[i] << " "; }
+                std::cout << "]\n";
+
+                // if (left > right) {
+                //     left = right;
+                // }
+                if ((*this)[pivot] < (*this)[left]) {
+                    std::swap((*this)[pivot], (*this)[left - 1]);
+                    // assert(left > 1);
+                    return left - 1;
+                } else {
+                    std::swap((*this)[pivot], (*this)[left]);
+                    return left;
+                }
             }
         }
     }
