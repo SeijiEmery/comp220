@@ -12,6 +12,7 @@
 #include <fstream>
 #include <string>
 #include <cassert>
+#include <cstdlib>
 
 //
 // Utilities
@@ -81,18 +82,78 @@ void unittest_4atoi () {
 }
 
 //
+// DVC parsing / loading
+//
+
+enum class Season : uint8_t {
+    SPRING = 0x0, SUMMER = 0x1, FALL = 0x2, WINTER = 0x3, INVALID = 0xFF
+};
+std::ostream& operator<< (std::ostream& os, Season season) {
+    switch (season) {
+        case Season::SPRING: return os << "Spring";
+        case Season::SUMMER: return os << "Summer";
+        case Season::FALL:   return os << "Fall";
+        case Season::WINTER: return os << "Winter";
+        default:             return os << "INVALID";
+    }
+}
+// Parse season from string (must match exactly); returns INVALID on error. 
+Season parseSeasonDVC (const char*& str) {
+    switch (reinterpret_cast<const uint32_t*>(str)[0]) {
+        case PACK_STR_4('S','p','r','i'): assert((((uint32_t*)str)[1] & 0x0000FFFF) == PACK_STR_4('n','g','\0','\0')); str += 6; return Season::SPRING;
+        case PACK_STR_4('S','u','m','m'): assert((((uint32_t*)str)[1] & 0x0000FFFF) == PACK_STR_4('e','r','\0','\0')); str += 6; return Season::SUMMER;
+        case PACK_STR_4('F','a','l','l'): str += 4; return Season::FALL;
+        case PACK_STR_4('W','i','n','t'): assert((((uint32_t*)str)[1] & 0x0000FFFF) == PACK_STR_4('e','r','\0','\0')); str += 7; return Season::WINTER;
+        default: return Season::INVALID;
+    }
+}
+
+
+class Date {
+    uint8_t hash;
+public:
+    static constexpr int MIN_YEAR = 2000;
+    static constexpr int MAX_YEAR = 2000 + (1 << (sizeof(hash) * 8 - 2)) - 1;
+
+    Date () : hash(0) { assert(season() == Season::SPRING && year() == 2000); }
+    Date (Season season, int year)
+        : hash(static_cast<decltype(hash)>(season) | static_cast<decltype(hash)>((year - 2000) << 2))
+    {
+        if (year < MIN_YEAR || year > MAX_YEAR) {
+            std::cerr << "Year exceeds bounds: " << year << " [" << MIN_YEAR << ", " << MAX_YEAR << "]" << std::endl;
+            exit(-1);
+        }
+        assert(this->season() == season);
+        assert(this->year() == year);
+    }
+    Date (const Date&)              = default;
+    Date& operator= (const Date&)   = default;
+
+    Season season () const { return static_cast<Season>(hash & 0x3);    }
+    int    year   () const { return static_cast<int>(hash >> 2) + 2000; }
+
+    friend bool operator== (const Date& a, const Date& b) { return a.hash == b.hash; }
+    friend bool operator!= (const Date& a, const Date& b) { return a.hash != b.hash; }
+    friend bool operator<= (const Date& a, const Date& b) { return a.hash <= b.hash; }
+    friend bool operator>= (const Date& a, const Date& b) { return a.hash >= b.hash; }
+    friend bool operator<  (const Date& a, const Date& b) { return a.hash < b.hash; }
+    friend bool operator>  (const Date& a, const Date& b) { return a.hash > b.hash; }
+
+    friend std::ostream& operator<< (std::ostream& os, const Date& date) {
+        return os << date.season() << ' ' << date.year();
+    }
+};
+
+
+//
 // Parsing algorithm
 //
 
 struct ParseResult {
+    Date        date;
     std::string subject;
     std::string section;
-    size_t      hash;
     const char* line;
-
-    friend std::ostream& operator<< (std::ostream& os, ParseResult& result) {
-        return os << result.subject << "-" << result.section << " (hash " << result.hash << ")";
-    }
 };
 
 bool parse (const char* file, size_t line_num, const char* line, ParseResult& result) {
@@ -102,20 +163,15 @@ bool parse (const char* file, size_t line_num, const char* line, ParseResult& re
 
     result.line = line;
     size_t semester = 0;
-    switch (((uint32_t*)line)[0]) {
-        case PACK_STR_4('S','p','r','i'): require("expected season", (((uint32_t*)line)[1] & 0x00FFFFFF) == PACK_STR_4('n','g',' ','\0')); line += 7; semester = 0; break;
-        case PACK_STR_4('S','u','m','m'): require("expected season", (((uint32_t*)line)[1] & 0x00FFFFFF) == PACK_STR_4('e','r',' ','\0')); line += 7; semester = 1; break;
-        case PACK_STR_4('F','a','l','l'): require("expected season", line[4] == ' ');                                                         line += 5; semester = 2; break;
-        case PACK_STR_4('W','i','n','t'): require("expected season", (((uint32_t*)line)[1] & 0x00FFFFFF) == PACK_STR_4('e','r',' ','\0')); line += 7; semester = 3; break;
-        default: return false;
-    }
-    require("expected year", isnumber(line[0]) && line[4] == '\t');
-    result.hash = semester | (((_4atoi(line) - 2000) & 31) << 2);
-    line += 5;
+
+    Season season = parseSeasonDVC(line);
+    require("expected season", season != Season::INVALID);
+    require("expected year", line[0] == ' ' && isnumber(line[1]) && line[5] == '\t');
+    result.date = Date(season, _4atoi(&line[1]));
+    line += 6;
 
     require("expected section", isnumber(line[0]) && line[4] == '\t');
     size_t code = _4atoi(line);
-    result.hash |= (code << 8);
     line += 5;
 
     require("expected course", isupper(line[0]));
@@ -175,7 +231,7 @@ int main (int argc, const char** argv) {
               << "Programmer's id: M00202623\n"
               << "File: " __FILE__ "\n\n";
     parseDvc(argc, argv, [](const ParseResult& result, size_t lineNum, const std::string& line){
-        report() << lineNum << ": " << result.subject << "-" << result.section;
+        report() << lineNum << ": " << result.date << ", " << result.subject << "-" << result.section;
     });
     return 0;
 }
