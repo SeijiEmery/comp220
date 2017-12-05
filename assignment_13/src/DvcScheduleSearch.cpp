@@ -13,6 +13,7 @@
 #include <string>
 #include <cassert>
 #include <cstdlib>
+#include <cstring>
 
 //
 // Utilities
@@ -98,7 +99,7 @@ std::ostream& operator<< (std::ostream& os, Season season) {
     }
 }
 // Parse season from string (must match exactly); returns INVALID on error. 
-Season parseSeasonDVC (const char*& str) {
+Season parseSeasonDVC (char*& str) {
     switch (reinterpret_cast<const uint32_t*>(str)[0]) {
         case PACK_STR_4('S','p','r','i'): assert((((uint32_t*)str)[1] & 0x0000FFFF) == PACK_STR_4('n','g','\0','\0')); str += 6; return Season::SPRING;
         case PACK_STR_4('S','u','m','m'): assert((((uint32_t*)str)[1] & 0x0000FFFF) == PACK_STR_4('e','r','\0','\0')); str += 6; return Season::SUMMER;
@@ -151,18 +152,17 @@ public:
 
 struct ParseResult {
     Date        date;
-    std::string subject;
-    std::string section;
-    const char* line;
+    uint16_t    section;
+    const char* course;
+    size_t      courseNumber;
+    const char* instructor;
+    const char* details;
 };
 
-bool parse (const char* file, size_t line_num, const char* line, ParseResult& result) {
+bool parse (const char* file, size_t line_num, char* line, ParseResult& result) {
     #define require(context, expr) if (!(expr)) { warn(std::cerr) << "PARSING ERROR (" \
             << context << ", " __FILE__ ":" << __LINE__ << ") in " \
             << file << ':' << line_num << ", at '" << line << "')"; return false; }
-
-    result.line = line;
-    size_t semester = 0;
 
     Season season = parseSeasonDVC(line);
     require("expected season", season != Season::INVALID);
@@ -171,21 +171,23 @@ bool parse (const char* file, size_t line_num, const char* line, ParseResult& re
     line += 6;
 
     require("expected section", isnumber(line[0]) && line[4] == '\t');
-    size_t code = _4atoi(line);
+    result.section = static_cast<decltype(result.section)>(_4atoi(line));
     line += 5;
 
-    require("expected course", isupper(line[0]));
-    const char* end = strchr(line, '-');
-    require("expected course", end != nullptr && end != line);
-    result.subject = { line, (size_t)(end - line) };
+    result.course = line; line = strchr(line, '-');
+    require("expected course", isupper(result.course[0]) && line[0] == '-');
+    *line++ = '\0';
 
-    require("expected section", *end == '-');
-    const char* sbegin = end + 1;
-    const char* send   = strchr(sbegin, '\t');
-    require("expected section", send != nullptr && send != sbegin);
-    result.section = { sbegin, (size_t)(send - sbegin) };
+    require("expected course number", isnumber(*line));
+    result.courseNumber = atoi(line); line = strchr(line, '\t');
+    require("expected instructor", *line++ == '\t');
+
+    result.instructor = line; line = strchr(line, '\t');
+    require("expected instructor", isupper(result.instructor[0]) && line[0] == '\t');
+    *line++ = '\0';
+
+    result.details = line;
     return true;
-
     #undef require
 }
 
@@ -199,10 +201,11 @@ void parseDvc (const char* filePath, const F& callback) {
         std::cout << "Loaded file '" << filePath << "'" << std::endl;
     }
     ParseResult result;
+
     std::string line;
     size_t lineNum = 0;
     while (getline(file, line)) {
-        if (parse(filePath, ++lineNum, line.c_str(), result)) {
+        if (parse(filePath, ++lineNum, &line[0], result)) {
             callback(result, lineNum, line);
         }
     }
@@ -231,7 +234,12 @@ int main (int argc, const char** argv) {
               << "Programmer's id: M00202623\n"
               << "File: " __FILE__ "\n\n";
     parseDvc(argc, argv, [](const ParseResult& result, size_t lineNum, const std::string& line){
-        report() << lineNum << ": " << result.date << ", " << result.subject << "-" << result.section;
+        report() << lineNum << ": " 
+            << result.date << ", " 
+            << result.section << " " 
+            << result.course << "-" << result.courseNumber
+             << ": " 
+            << result.details;
     });
     return 0;
 }
