@@ -1,5 +1,5 @@
 cmake_minimum_required (VERSION 2.6)
-project (assignment_09)
+project (assignment_13)
 
 # set(CMAKE_CXX_FLAGS "-Wall -Wextra")
 set(CMAKE_CXX_FLAGS_DEBUG "-g")
@@ -17,23 +17,13 @@ else()
         message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
 endif()
 
-# import DynamicArray.h from assignment_03 and Queue.h from assignment_07.
-include_directories(src ../assignment_03/src)
-include_directories(src ../assignment_07/src)
+add_executable(dvc_search   src/DvcScheduleSearch.cpp)
+add_executable(dvc_check    src/DvcScheduleCheck.cpp)
 
-# executables: main program + testdriver
-add_executable(testdriver       src/AssociativeArray.TestDriver.cpp)
-add_executable(kvtest_          src/TestKV.cpp)
-add_executable(dvc              src/DvcSchedule9.cpp)
+add_custom_target(search
+    COMMAND ./dvc_search
+    DEPENDS dvc_search)
 
-add_custom_target(run
-    COMMAND ./dvc
-    DEPENDS dvc)
-
-add_custom_target(test
-    COMMAND ./testdriver
-    DEPENDS testdriver)
-
-add_custom_target(kvtest
-    COMMAND ./kvtest_
-    DEPENDS kvtest_)
+add_custom_target(check
+    COMMAND ./dvc_check
+    DEPENDS dvc_check)
