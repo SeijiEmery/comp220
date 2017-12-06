@@ -14,6 +14,7 @@
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
+#include <map>
 
 //
 // Utilities
@@ -83,7 +84,7 @@ void unittest_4atoi () {
 }
 
 //
-// DVC parsing / loading
+// DVC Date handling
 //
 
 enum class Season : uint8_t {
@@ -108,7 +109,6 @@ Season parseSeasonDVC (char*& str) {
         default: return Season::INVALID;
     }
 }
-
 
 class Date {
     uint8_t hash;
@@ -147,14 +147,14 @@ public:
 
 
 //
-// Parsing algorithm
+// Parser
 //
 
 struct ParseResult {
     Date        date;
     uint16_t    section;
-    const char* course;
-    size_t      courseNumber;
+    const char* course;         // course string (including course #)
+    const char* courseNumber;   // aliased pointer to course number (only)
     const char* instructor;
     const char* details;
 };
@@ -176,11 +176,11 @@ bool parse (const char* file, size_t line_num, char* line, ParseResult& result) 
 
     result.course = line; line = strchr(line, '-');
     require("expected course", isupper(result.course[0]) && line[0] == '-');
-    *line++ = '\0';
+    ++line;
 
-    require("expected course number", isnumber(*line));
-    result.courseNumber = atoi(line); line = strchr(line, '\t');
-    require("expected instructor", *line++ == '\t');
+    result.courseNumber = &line[1]; line = strchr(line, '\t');
+    require("expected course number", isnumber(result.courseNumber[0]) && *line == '\t');
+    *line++ = '\0';
 
     result.instructor = line; line = strchr(line, '\t');
     require("expected instructor", isupper(result.instructor[0]) && line[0] == '\t');
@@ -225,21 +225,61 @@ void parseDvc (int argc, const char** argv, const F& callback) {
     parseDvc(path, callback);
 }
 
-
-
+//
+// Program implementation
+//
 
 int main (int argc, const char** argv) {
     unittest_4atoi();
     std::cout << "Programmer: Seiji Emery\n"
               << "Programmer's id: M00202623\n"
               << "File: " __FILE__ "\n\n";
-    parseDvc(argc, argv, [](const ParseResult& result, size_t lineNum, const std::string& line){
-        report() << lineNum << ": " 
-            << result.date << ", " 
-            << result.section << " " 
-            << result.course << "-" << result.courseNumber
-             << ": " 
-            << result.details;
+
+    typedef std::map<Date, uint16_t>              CourseSections;
+    typedef std::map<std::string, CourseSections> CourseLookup;
+    CourseLookup courses;
+
+    report() << "loading data...";
+    parseDvc(argc, argv, [&](const ParseResult& result, size_t lineNum, const std::string& line){
+        courses[result.course][result.date] = result.section;
+        // report() << lineNum << ": " 
+        //     << result.date << ", " 
+        //     << result.section << " " 
+        //     << result.course << ": " 
+        //     << result.details;
     });
+    report() << "done.";
+    report() << "Found courses: ";
+    for (const auto& value : courses) {
+        report() << value.first;
+    }
+
+    std::string input;
+    while (1) {
+        do {
+            std::cout << "Course id: ";
+        } while (!getline(std::cin, input));
+
+        input.erase(input.find_last_not_of(" \n\r\t")+1);
+
+        if (input == "x" || input == "X") {
+            exit(0);
+        }
+
+        auto lookup = courses.find(input);
+        size_t numResults = 0;
+
+        if (lookup != courses.end()) {
+            CourseSections& results = lookup->second;
+            for (const auto& values : results) {
+                ++numResults;
+                report() << values.first << ": " << values.second;
+            }
+        }
+        if (numResults == 0) {
+            warn() << "No results found for '" << input << "'";
+        }
+    }
+
     return 0;
 }
