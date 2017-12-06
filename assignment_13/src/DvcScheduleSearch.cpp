@@ -14,7 +14,9 @@
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
-#include <map>
+#include <map>      // std::map
+#include <vector>   // std::vector
+#include <utility>  // std::pair
 
 //
 // Utilities
@@ -249,6 +251,20 @@ int main (int argc, const char** argv) {
     });
     report() << "Finished.";
 
+
+    // Fuzzy search algorithm I wrote a while ago:
+    // https://gist.github.com/SeijiEmery/c3ac2c13b65be7802395
+    auto fuzzyMatch = [&](const std::string& s, const std::string& q) {
+        size_t i = s.size(), j = q.size();
+        while ( i > 0 && i >= j) {
+            if (s[i-1] == q[j-1]) {
+                --j;
+            }
+            --i;
+        }
+        return j == 0;
+    };
+
     std::string input;
     while (1) {
         do {
@@ -267,21 +283,18 @@ int main (int argc, const char** argv) {
             }
             continue;
         }
-
-        auto lookup = courses.find(input);
         size_t numResults = 0;
-
-        if (lookup != courses.end()) {
-            CourseSections& results = lookup->second;
-            if (!results.empty()) {
-                ++numResults;
-                report() << lookup->first << " was last offered in " << results.rend()->first;
+        for (auto& course : courses) {
+            if (fuzzyMatch(course.first, input)) {
+                if (course.second.rbegin() != course.second.rend()) {
+                    report() << course.first << " was last offered in " << course.second.rbegin()->first;// << course.second.rend()->first;
+                    ++numResults;
+                }
             }
         }
         if (numResults == 0) {
             warn() << "No results found for '" << input << "'";
         }
     }
-
     return 0;
 }
