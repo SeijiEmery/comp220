@@ -1,0 +1,9 @@
+Input file processed
+
+
+Enter the start city [blank to exit]: DFS-San Francisco-Eureka-Coos Bay-Grants Pass-Redding-Klamath Falls-Lakeview-Reno-Sacramento-Bishop-Winnemucca-Ely-Las Vegas-San Diego-Barstow-Bakersfield-Fresno-San Luis Obispo-Los Angeles-Blythe-Needles-Yuma
+
+Enter the start city [blank to exit]: DFS-Yuma-Los Angeles-Bishop-Sacramento-Redding-Eureka-Coos Bay-Grants Pass-San Francisco-Fresno-Bakersfield-Barstow-Needles-Blythe-San Diego-San Luis Obispo-Klamath Falls-Lakeview-Reno-Winnemucca-Ely-Las Vegas
+
+
+Enter the start city [blank to exit]:

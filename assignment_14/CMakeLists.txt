@@ -25,11 +25,21 @@ add_custom_target(run_bfs
     DEPENDS bfs)
 
 add_custom_target(run_dfs
-    COMMAND cat test/input.txt | ./dfs > dfs_out.txt 
+    COMMAND ./dfs
+    DEPENDS dfs)
+
+add_custom_target(test_run_bfs
+    COMMAND cat ../test/input.txt | ./bfs > bfs_out.txt
+    DEPENDS bfs)
+
+add_custom_target(test_run_dfs
+    COMMAND cat ../test/input.txt | ./dfs > dfs_out.txt
     DEPENDS dfs)
 
 add_custom_target(test_bfs
-    COMMAND cat test/input.txt | ./bfs > bfs_out.txt
-    DEPENDS bfs)
+    COMMAND diff bfs_out.txt ../test/bfs_expected.txt
+    DEPENDS test_run_bfs)
 
-
+add_custom_target(test_dfs
+    COMMAND diff dfs_out.txt ../test/dfs_expected.txt 
+    DEPENDS test_run_dfs)
