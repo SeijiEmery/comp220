@@ -195,17 +195,17 @@ template <typename F>
 void parseDvc (const char* filePath, const F& callback) {
     std::ifstream file { filePath };
     if (!file) {
-        std::cerr << "Could not load '" << filePath << "'" << std::endl;
+        warn(std::cerr) << "Could not load '" << filePath << "'"; std::cerr.flush();
         exit(-1);
     } else {
-        std::cout << "Loaded file '" << filePath << "'" << std::endl;
+        report() << "Loaded file '" << filePath << "'. Parsing...";
     }
     ParseResult result;
 
     std::string line;
     size_t lineNum = 0;
     while (getline(file, line)) {
-        if (parse(filePath, ++lineNum, &line[0], result)) {
+        if (lineNum != 0 && parse(filePath, ++lineNum, &line[0], result)) {
             callback(result, lineNum, line);
         }
     }
@@ -239,7 +239,7 @@ int main (int argc, const char** argv) {
     typedef std::map<std::string, CourseSections> CourseLookup;
     CourseLookup courses;
 
-    report() << "loading data...";
+    report() << "Loading data...";
     parseDvc(argc, argv, [&](const ParseResult& result, size_t lineNum, const std::string& line){
         courses[result.course][result.date] = result.section;
         // report() << lineNum << ": " 
@@ -248,21 +248,21 @@ int main (int argc, const char** argv) {
         //     << result.course << ": " 
         //     << result.details;
     });
-    report() << "done.";
-    report() << "Found courses: ";
-    for (const auto& value : courses) {
-        report() << value.first;
-    }
+    report() << "Finished.";
+    // report() << "Found courses: ";
+    // for (const auto& value : courses) {
+    //     report() << value.first;
+    // }
 
     std::string input;
     while (1) {
         do {
-            std::cout << "Course id: ";
+            std::cout << "Enter course name [enter X to quit]: ";
         } while (!getline(std::cin, input));
 
         input.erase(input.find_last_not_of(" \n\r\t")+1);
-
-        if (input == "x" || input == "X") {
+        for (auto& c : input) { c = toupper(c); }
+        if (input == "X") {
             exit(0);
         }
 
@@ -271,9 +271,9 @@ int main (int argc, const char** argv) {
 
         if (lookup != courses.end()) {
             CourseSections& results = lookup->second;
-            for (const auto& values : results) {
+            if (!results.empty()) {
                 ++numResults;
-                report() << values.first << ": " << values.second;
+                report() << lookup->first << " was last offered in " << results.rend()->first;
             }
         }
         if (numResults == 0) {
