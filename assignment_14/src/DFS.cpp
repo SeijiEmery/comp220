@@ -1,3 +1,11 @@
+// Programmer: Seiji Emery
+// Programmer ID: M00202623
+//
+// DFS.cpp
+//
+// Prints the results of traversing the graph defined by cities.txt
+// using depth first search
+//
 #include <fstream>
 #include <iostream>
 #include <list>
@@ -14,7 +22,7 @@ struct Node
     list<int> neighbors;
 };
 
-queue<int> doBreadthFirstSearch(int iOriginNode, vector<Node>& database)
+queue<int> doDepthFirstSearch(int iOriginNode, vector<Node>& database)
 {
     queue<int> searchOrder;
     for (int i = 0; i < database.size(); ++i) {
@@ -25,6 +33,10 @@ queue<int> doBreadthFirstSearch(int iOriginNode, vector<Node>& database)
 
 int main()
 {
+    std::cout << "Programmer: Seiji Emery\n"
+              << "Programmer's id: M00202623\n"
+              << "File: " __FILE__ "\n\n";
+              
     ifstream fin;
     fin.open("cities.txt");
     if (!fin.good()) throw "I/O error";  
@@ -88,7 +100,7 @@ int main()
 
         // BFS result by copy-pop
         cout << "BFS";
-        for (queue<int> q = doBreadthFirstSearch(i, database); !q.empty(); q.pop())
+        for (queue<int> q = doDepthFirstSearch(i, database); !q.empty(); q.pop())
             cout  << '-'<< database[q.front()].name;
         cout << endl;
     }

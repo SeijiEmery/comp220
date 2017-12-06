@@ -1,3 +1,11 @@
+// Programmer: Seiji Emery
+// Programmer ID: M00202623
+//
+// BFS.cpp
+//
+// Prints the results of traversing the graph defined by cities.txt
+// using breadth first search
+//
 #include <fstream>
 #include <iostream>
 #include <list>
@@ -25,6 +33,10 @@ queue<int> doBreadthFirstSearch(int iOriginNode, vector<Node>& database)
 
 int main()
 {
+    std::cout << "Programmer: Seiji Emery\n"
+              << "Programmer's id: M00202623\n"
+              << "File: " __FILE__ "\n\n";
+
     ifstream fin;
     fin.open("cities.txt");
     if (!fin.good()) throw "I/O error";  
