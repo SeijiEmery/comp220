@@ -160,9 +160,9 @@ struct ParseResult {
 };
 
 bool parse (const char* file, size_t line_num, char* line, ParseResult& result) {
-    #define require(context, expr) if (!(expr)) { warn(std::cerr) << "PARSING ERROR (" \
+    #define require(context, expr) if (!(expr)) { /*warn(std::cerr) << "PARSING ERROR (" \
             << context << ", " __FILE__ ":" << __LINE__ << ") in " \
-            << file << ':' << line_num << ", at '" << line << "')"; return false; }
+            << file << ':' << line_num << ", at '" << line << "')";*/ return false; }
 
     Season season = parseSeasonDVC(line);
     require("expected season", season != Season::INVALID);
@@ -203,9 +203,8 @@ void parseDvc (const char* filePath, const F& callback) {
     ParseResult result;
 
     std::string line;
-    size_t lineNum = 0;
-    while (getline(file, line)) {
-        if (lineNum != 0 && parse(filePath, ++lineNum, &line[0], result)) {
+    for (size_t lineNum = 0; getline(file, line); ++lineNum) {
+        if (parse(filePath, lineNum, &line[0], result)) {
             callback(result, lineNum, line);
         }
     }
@@ -249,10 +248,6 @@ int main (int argc, const char** argv) {
         //     << result.details;
     });
     report() << "Finished.";
-    // report() << "Found courses: ";
-    // for (const auto& value : courses) {
-    //     report() << value.first;
-    // }
 
     std::string input;
     while (1) {
@@ -262,8 +257,15 @@ int main (int argc, const char** argv) {
 
         input.erase(input.find_last_not_of(" \n\r\t")+1);
         for (auto& c : input) { c = toupper(c); }
-        if (input == "X") {
+        if (input == "X" || input == "QUIT") {
             exit(0);
+        }
+        if (input == "LIST") {
+            report() << "Course names: " << courses.size();
+            for (const auto& value : courses) {
+                report() << value.first;
+            }
+            continue;
         }
 
         auto lookup = courses.find(input);
