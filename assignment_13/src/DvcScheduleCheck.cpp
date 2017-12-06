@@ -7,11 +7,9 @@
 // (each section number for a given semester is supposed to be unique)
 //
 #include <iostream>
-#include <iomanip>
 #include <fstream>
 #include <string>
 #include <cassert>
-#include <cstdlib>
 #include <cstring>
 #include <map>
 

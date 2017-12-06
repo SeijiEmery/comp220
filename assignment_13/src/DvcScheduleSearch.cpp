@@ -8,15 +8,11 @@
 // Uses ANSI text colors, so run this in a terminal (please).
 //
 #include <iostream>
-#include <iomanip>
 #include <fstream>
 #include <string>
 #include <cassert>
-#include <cstdlib>
 #include <cstring>
-#include <map>      // std::map
-#include <vector>   // std::vector
-#include <utility>  // std::pair
+#include <map>
 
 //
 // Utilities
