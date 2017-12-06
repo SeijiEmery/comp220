@@ -17,16 +17,27 @@ using namespace std;
 struct Node
 {
     string name;
-
-    bool isVisited;
     list<int> neighbors;
 };
 
 queue<int> doBreadthFirstSearch(int iOriginNode, vector<Node>& database)
 {
     queue<int> searchOrder;
-    for (int i = 0; i < database.size(); ++i) {
+    vector<bool> visited (database.size(), false);
+    vector<int> toVisit;
+
+    toVisit.push_back(iOriginNode);
+    visited[iOriginNode] = true;
+
+    for (int next = 0; next < toVisit.size(); ++next) {
+        int i = toVisit[next];
         searchOrder.push(i);
+        for (auto j : database[i].neighbors) {
+            if (!visited[j]) {
+                visited[j] = true;
+                toVisit.push_back(j);
+            }
+        }
     }
     return searchOrder;
 }

@@ -1,3 +1,7 @@
+Programmer: Seiji Emery
+Programmer's id: M00202623
+File: /Users/semery/projects/comp220/assignment_14/src/BFS.cpp
+
 Input file processed
 
 
@@ -5,5 +9,4 @@ Enter the start city [blank to exit]: BFS-San Francisco-Eureka-Redding-Sacrament
 
 Enter the start city [blank to exit]: BFS-Yuma-Los Angeles-Blythe-San Diego-Bishop-San Luis Obispo-Bakersfield-Barstow-Needles-Sacramento-Reno-Winnemucca-Ely-Las Vegas-San Francisco-Fresno-Redding-Eureka-Grants Pass-Klamath Falls-Lakeview-Coos Bay
 
-
-Enter the start city [blank to exit]:
+Enter the start city [blank to exit]: 
