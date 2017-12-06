@@ -17,16 +17,32 @@ using namespace std;
 struct Node
 {
     string name;
-
-    bool isVisited;
     list<int> neighbors;
 };
 
 queue<int> doDepthFirstSearch(int iOriginNode, vector<Node>& database)
 {
-    queue<int> searchOrder;
-    for (int i = 0; i < database.size(); ++i) {
-        searchOrder.push(i);
+    queue<int>   searchOrder;
+    vector<bool> visited (database.size(), false);
+    vector<int>  toVisit;
+
+    toVisit.push_back(iOriginNode);
+
+    while (!toVisit.empty()) {
+        int i = toVisit.back(); toVisit.pop_back();
+        if (!visited[i]) {
+            visited[i] = true;
+            searchOrder.push(i);
+            for (auto it = database[i].neighbors.rbegin(),
+                end = database[i].neighbors.rend();
+                it != end;
+                ++it
+            ) {
+                if (!visited[*it]) {
+                    toVisit.push_back(*it);
+                }
+            }
+        }
     }
     return searchOrder;
 }
@@ -36,7 +52,7 @@ int main()
     std::cout << "Programmer: Seiji Emery\n"
               << "Programmer's id: M00202623\n"
               << "File: " __FILE__ "\n\n";
-              
+
     ifstream fin;
     fin.open("cities.txt");
     if (!fin.good()) throw "I/O error";  
