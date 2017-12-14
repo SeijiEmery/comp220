@@ -91,42 +91,42 @@ pair<stack<int>, double> getCheapestRoute(int iStart, int iEnd, vector<Node>& da
         database[t.index].cost      = t.cost;
         database[t.index].prev      = t.prev;
 
-        std::cout << "Exploring '" 
-            << database[t.index].name << "', " 
-            << t.cost;
-        if (t.prev >= 0) {
-            std::cout << " (from '" 
-                << database[t.prev].name 
-                << "')\n";
-        } else {
-            std::cout << " (root)\n";
-        }
+        // std::cout << "Exploring '" 
+        //     << database[t.index].name << "', " 
+        //     << t.cost;
+        // if (t.prev >= 0) {
+        //     std::cout << " (from '" 
+        //         << database[t.prev].name 
+        //         << "')\n";
+        // } else {
+        //     std::cout << " (root)\n";
+        // }
 
         // If found destination node, build results and return
         if (t.index == iEnd) {
-            std::cout << "Reached target\n";
+            // std::cout << "Reached target\n";
             assert(result.first.empty());
             assert(result.second == 0);
 
-            std::cout << "Reverse path: ";
+            // std::cout << "Reverse path: ";
             for (int i = iEnd; i >= 0; i = database[i].prev) {
-                std::cout << '\'' << database[i].name << "', ";
+                // std::cout << '\'' << database[i].name << "', ";
 
                 assert(database[i].isVisited);
                 database[i].isVisited = false;
                 result.first.push(i);
             }
-            std::cout << "\b\b\n";
+            // std::cout << "\b\b\n";
             result.second = database[iEnd].cost;
             return result;
         }
 
         // Otherwise, explore / add neighbors
         for (const auto& edge : database[t.index].neighbors) {
-            std::cout << "Inserting edge: '"
-                << database[edge.first].name << "', "
-                << edge.second << " + " << t.cost << " = "
-                << (edge.second + t.cost) << '\n';
+            // std::cout << "Inserting edge: '"
+            //     << database[edge.first].name << "', "
+            //     << edge.second << " + " << t.cost << " = "
+            //     << (edge.second + t.cost) << '\n';
             toVisit.emplace(edge.first, t.index,
                 edge.second + t.cost);
         }
@@ -191,7 +191,7 @@ int main()
     fin.close();
     cout << "Input file processed\n\n";
 
-    printGraph(database);
+    // printGraph(database);
 
     while (true)
     {
@@ -217,7 +217,7 @@ int main()
                 break;
 
         pair<stack<int>, double> result = getCheapestRoute(iFrom, iTo, database);
-        cout << "Total edges: " << result.second;  
+        cout << "Total miles: " << result.second;  
         for (; !result.first.empty(); result.first.pop())
             cout << '-' << database[result.first.top()].name;
         cout << endl;

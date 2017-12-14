@@ -29,11 +29,11 @@ add_custom_target(cheapest
     DEPENDS graph_cheapest)
 
 add_custom_target(run_test_shortest
-    COMMAND cat ../test/input.txt | ./graph_shortest > output_shortest.txt
+    COMMAND cat ../test/input_shortest.txt | ./graph_shortest > output_shortest.txt
     DEPENDS graph_shortest)
 
 add_custom_target(run_test_cheapest
-    COMMAND cat ../test/input.txt | ./graph_cheapest > output_cheapest.txt
+    COMMAND cat ../test/input_cheapest.txt | ./graph_cheapest > output_cheapest.txt
     DEPENDS graph_cheapest)
 
 add_custom_target(test_shortest
@@ -45,6 +45,7 @@ add_custom_target(test_cheapest
     DEPENDS run_test_cheapest)
 
 add_custom_target(test
+    COMMAND echo "all tests passed!"
     DEPENDS test_shortest test_cheapest)
 
 add_custom_target(run
