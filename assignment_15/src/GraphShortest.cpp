@@ -9,6 +9,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <iomanip>
 #include <list>
 #include <queue>
 #include <stack>
@@ -31,6 +32,30 @@ struct Node
     bool        isVisited;
 };
 
+void printGraph (vector<Node>& database) {
+    // Write out graph state:
+    std::vector<bool> bitset;
+
+    std::cout << '\n' << std::setw(16) << " ";
+    for (size_t i = 0; i < database.size(); ++i) {
+        std::cout << ' ' << (database[i].name.size() ? database[i].name[0] : '-');
+    }
+
+    for (size_t i = 0; i < database.size(); ++i) {
+        std::cout << '\n' << std::setw(16) << database[i].name;
+
+        bitset.clear(); bitset.resize(database.size(), false);
+        for (const auto& edge : database[i].neighbors) {
+            bitset[edge.first] = true;
+        }
+
+        for (size_t j = 0; j < database.size(); ++j) {
+            std::cout << ' ' << (bitset[j] ? 'X' : '.');
+        }
+    }
+    std::cout << std::endl;
+}
+
 pair<stack<int>, double> getShortestRoute(int iStart, int iEnd, vector<Node>& database)
 {
     // Reset internal graph state
@@ -45,10 +70,13 @@ pair<stack<int>, double> getShortestRoute(int iStart, int iEnd, vector<Node>& da
 
     while (!toVisit.empty()) {
         int i = toVisit.back(); toVisit.pop();
-        for (auto& edge : database[i].neighbors) {
+
+        std::cout << "Exploring connections of '" << database[i].name << "'\n";
+        for (const auto& edge : database[i].neighbors) {
             if (database[edge.first].isVisited) {
                 continue;
             }
+            std::cout << "Visited '" << database[edge.first].name << "'\n";
             database[edge.first].isVisited = true;
             database[edge.first].cost = database[i].cost + 1;
             database[edge.first].prev = i;
@@ -56,16 +84,21 @@ pair<stack<int>, double> getShortestRoute(int iStart, int iEnd, vector<Node>& da
 
             // Found destination node -- build results and return
             if (edge.first == iEnd) {
+                std::cout << "Reached target\n";
                 assert(result.first.empty());
                 assert(result.second == 0);
 
+
+                std::cout << "Reverse path: ";
                 for (i = iEnd; i >= 0; i = database[i].prev) {
+                    std::cout << '\'' << database[i].name << "', ";
+
                     assert(database[i].isVisited);
                     database[i].isVisited = false;
                     result.first.push(i);
-                    result.second += 1;
                 }
-                --result.second;    // don't count 1st / starting node in # of connections
+                std::cout << "\b\b\n";
+                result.second = database[iEnd].cost;
                 return result;
             }
         }
@@ -129,6 +162,8 @@ int main()
     }
     fin.close();
     cout << "Input file processed\n\n";
+
+    printGraph(database);
 
     while (true)
     {
