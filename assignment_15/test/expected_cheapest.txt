@@ -1,0 +1,12 @@
+Programmer: Seiji Emery
+Programmer's id: M00202623
+File: /Users/semery/projects/comp220/assignment_15/src/GraphCheapest.cpp
+
+Input file processed
+
+
+Enter the source city [blank to exit]: Enter the destination city [blank to exit]: Total miles: 229-San Francisco-Sacramento-Reno
+
+Enter the source city [blank to exit]: Enter the destination city [blank to exit]: Total miles: 1164-Yuma-Los Angeles-Bakersfield-San Francisco-Eureka-Coos Bay
+
+Enter the source city [blank to exit]: 

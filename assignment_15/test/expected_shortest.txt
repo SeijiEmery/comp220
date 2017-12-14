@@ -1,0 +1,12 @@
+Programmer: Seiji Emery
+Programmer's id: M00202623
+File: /Users/semery/projects/comp220/assignment_15/src/GraphShortest.cpp
+
+Input file processed
+
+
+Enter the source city [blank to exit]: Enter the destination city [blank to exit]: Total edges: 5-Coos Bay-Eureka-San Francisco-Bakersfield-Los Angeles-Yuma
+
+Enter the source city [blank to exit]: Enter the destination city [blank to exit]: Total edges: 1-San Francisco-Sacramento
+
+Enter the source city [blank to exit]: 
