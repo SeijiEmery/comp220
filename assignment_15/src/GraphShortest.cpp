@@ -18,22 +18,61 @@
 using namespace std;
 
 #include <cstdlib>
+#include <cassert>
 
 struct Node
 {
-    string name;
+    typedef pair<int,double> Edge;
 
-    bool isVisited;
-    list<pair<int, double> > neighbors;
-    int prev;
-    double cost;
+    string      name;
+    list<Edge>  neighbors;
+    double      cost;
+    int         prev;
+    bool        isVisited;
 };
 
 pair<stack<int>, double> getShortestRoute(int iStart, int iEnd, vector<Node>& database)
 {
-    pair<stack<int>, double> result;
-    list<pair<int, double> >::iterator it; // to iterate over neighbors
-// TO DO -- write this function
+    // Reset internal graph state
+    for (auto& node : database) {
+        node.prev = -1;
+        node.cost = 0;
+    }
+    pair<stack<int>, double> result;    // used only at end to accumulate results
+    queue<int> toVisit;
+    toVisit.push(iStart);
+    database[iStart].isVisited = true;
+
+    while (!toVisit.empty()) {
+        int i = toVisit.back(); toVisit.pop();
+        for (auto& edge : database[i].neighbors) {
+            if (database[edge.first].isVisited) {
+                continue;
+            }
+            database[edge.first].isVisited = true;
+            database[edge.first].cost = database[i].cost + 1;
+            database[edge.first].prev = i;
+            toVisit.push(edge.first);
+
+            // Found destination node -- build results and return
+            if (edge.first == iEnd) {
+                assert(result.first.empty());
+                assert(result.second == 0);
+
+                for (i = iEnd; i >= 0; i = database[i].prev) {
+                    assert(database[i].isVisited);
+                    database[i].isVisited = false;
+                    result.first.push(i);
+                    result.second += 1;
+                }
+                --result.second;    // don't count 1st / starting node in # of connections
+                return result;
+            }
+        }
+    }
+    // Destination node not found; return "empty" results (should default to empty stack, cost zero)
+    assert(result.first.empty());
+    assert(result.second == 0); 
     return result;
 }
 
@@ -42,7 +81,7 @@ int main()
     std::cout << "Programmer: Seiji Emery\n"
               << "Programmer's id: M00202623\n"
               << "File: " __FILE__ "\n\n";
-              
+
     ifstream fin;
     fin.open("cities.txt");
     if (!fin.good()) throw "I/O error";  
@@ -114,11 +153,10 @@ int main()
             if (database[iTo].name == toCity)
                 break;
 
-        cout << "Route";
         pair<stack<int>, double> result = getShortestRoute(iFrom, iTo, database);
+        cout << "Total edges: " << result.second;  
         for (; !result.first.empty(); result.first.pop())
             cout << '-' << database[result.first.top()].name;
-        cout << "Total edges: " << result.second;  
         cout << endl;
     }
 }
