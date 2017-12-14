@@ -72,12 +72,12 @@ pair<stack<int>, double> getShortestRoute(int iStart, int iEnd, vector<Node>& da
     while (!toVisit.empty()) {
         int i = toVisit.front(); toVisit.pop();
 
-        std::cout << "Exploring connections of '" << database[i].name << "'\n";
+        // std::cout << "Exploring connections of '" << database[i].name << "'\n";
         for (const auto& edge : database[i].neighbors) {
             if (database[edge.first].isVisited) {
                 continue;
             }
-            std::cout << "Visited '" << database[edge.first].name << "'\n";
+            // std::cout << "Visited '" << database[edge.first].name << "'\n";
             database[edge.first].isVisited = true;
             database[edge.first].cost = database[i].cost + 1;
             database[edge.first].prev = i;
@@ -85,20 +85,20 @@ pair<stack<int>, double> getShortestRoute(int iStart, int iEnd, vector<Node>& da
 
             // Found destination node -- build results and return
             if (edge.first == iEnd) {
-                std::cout << "Reached target\n";
+                // std::cout << "Reached target\n";
                 assert(result.first.empty());
                 assert(result.second == 0);
 
 
-                std::cout << "Reverse path: ";
+                // std::cout << "Reverse path: ";
                 for (i = iEnd; i >= 0; i = database[i].prev) {
-                    std::cout << '\'' << database[i].name << "', ";
+                    // std::cout << '\'' << database[i].name << "', ";
 
                     assert(database[i].isVisited);
                     database[i].isVisited = false;
                     result.first.push(i);
                 }
-                std::cout << "\b\b\n";
+                // std::cout << "\b\b\n";
                 result.second = database[iEnd].cost;
                 return result;
             }
@@ -164,7 +164,7 @@ int main()
     fin.close();
     cout << "Input file processed\n\n";
 
-    printGraph(database);
+    // printGraph(database);
 
     while (true)
     {
