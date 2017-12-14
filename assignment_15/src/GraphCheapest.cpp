@@ -32,6 +32,20 @@ struct Node
     bool        isVisited;
 };
 
+struct Terminus {
+    int         index;
+    int         prev;
+    double      cost;
+
+    Terminus (int index, int prev = -1, double cost = 0)
+        : index(index), prev(prev), cost(cost) {}
+    Terminus (const Terminus&) = default;
+    Terminus& operator= (const Terminus& other) = default;
+};
+bool operator< (const Terminus& a, const Terminus& b) {
+    return b.cost < a.cost;     // reverse logic for low-to-high
+}
+
 void printGraph (vector<Node>& database) {
     // Write out graph state:
     std::vector<bool> bitset;
@@ -56,7 +70,7 @@ void printGraph (vector<Node>& database) {
     std::cout << std::endl;
 }
 
-pair<stack<int>, double> getShortestRoute(int iStart, int iEnd, vector<Node>& database)
+pair<stack<int>, double> getCheapestRoute(int iStart, int iEnd, vector<Node>& database)
 {
     // Reset internal graph state
     for (auto& node : database) {
@@ -65,43 +79,56 @@ pair<stack<int>, double> getShortestRoute(int iStart, int iEnd, vector<Node>& da
         node.isVisited = false;
     }
     pair<stack<int>, double> result;    // used only at end to accumulate results
-    queue<int> toVisit;
-    toVisit.push(iStart);
-    database[iStart].isVisited = true;
+    priority_queue<Terminus> toVisit;
+    toVisit.emplace(iStart);
 
     while (!toVisit.empty()) {
-        int i = toVisit.front(); toVisit.pop();
+        auto t = toVisit.top(); toVisit.pop();
+        if (database[t.index].isVisited) {
+            continue;
+        }
+        database[t.index].isVisited = true;
+        database[t.index].cost      = t.cost;
+        database[t.index].prev      = t.prev;
 
-        // std::cout << "Exploring connections of '" << database[i].name << "'\n";
-        for (const auto& edge : database[i].neighbors) {
-            if (database[edge.first].isVisited) {
-                continue;
+        std::cout << "Exploring '" 
+            << database[t.index].name << "', " 
+            << t.cost;
+        if (t.prev >= 0) {
+            std::cout << " (from '" 
+                << database[t.prev].name 
+                << "')\n";
+        } else {
+            std::cout << " (root)\n";
+        }
+
+        // If found destination node, build results and return
+        if (t.index == iEnd) {
+            std::cout << "Reached target\n";
+            assert(result.first.empty());
+            assert(result.second == 0);
+
+            std::cout << "Reverse path: ";
+            for (int i = iEnd; i >= 0; i = database[i].prev) {
+                std::cout << '\'' << database[i].name << "', ";
+
+                assert(database[i].isVisited);
+                database[i].isVisited = false;
+                result.first.push(i);
             }
-            // std::cout << "Visited '" << database[edge.first].name << "'\n";
-            database[edge.first].isVisited = true;
-            database[edge.first].cost = database[i].cost + 1;
-            database[edge.first].prev = i;
-            toVisit.push(edge.first);
+            std::cout << "\b\b\n";
+            result.second = database[iEnd].cost;
+            return result;
+        }
 
-            // Found destination node -- build results and return
-            if (edge.first == iEnd) {
-                // std::cout << "Reached target\n";
-                assert(result.first.empty());
-                assert(result.second == 0);
-
-
-                // std::cout << "Reverse path: ";
-                for (i = iEnd; i >= 0; i = database[i].prev) {
-                    // std::cout << '\'' << database[i].name << "', ";
-
-                    assert(database[i].isVisited);
-                    database[i].isVisited = false;
-                    result.first.push(i);
-                }
-                // std::cout << "\b\b\n";
-                result.second = database[iEnd].cost;
-                return result;
-            }
+        // Otherwise, explore / add neighbors
+        for (const auto& edge : database[t.index].neighbors) {
+            std::cout << "Inserting edge: '"
+                << database[edge.first].name << "', "
+                << edge.second << " + " << t.cost << " = "
+                << (edge.second + t.cost) << '\n';
+            toVisit.emplace(edge.first, t.index,
+                edge.second + t.cost);
         }
     }
     // Destination node not found; return "empty" results (should default to empty stack, cost zero)
@@ -164,7 +191,7 @@ int main()
     fin.close();
     cout << "Input file processed\n\n";
 
-    // printGraph(database);
+    printGraph(database);
 
     while (true)
     {
@@ -189,7 +216,7 @@ int main()
             if (database[iTo].name == toCity)
                 break;
 
-        pair<stack<int>, double> result = getShortestRoute(iFrom, iTo, database);
+        pair<stack<int>, double> result = getCheapestRoute(iFrom, iTo, database);
         cout << "Total edges: " << result.second;  
         for (; !result.first.empty(); result.first.pop())
             cout << '-' << database[result.first.top()].name;
