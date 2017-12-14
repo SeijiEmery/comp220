@@ -62,6 +62,7 @@ pair<stack<int>, double> getShortestRoute(int iStart, int iEnd, vector<Node>& da
     for (auto& node : database) {
         node.prev = -1;
         node.cost = 0;
+        node.isVisited = false;
     }
     pair<stack<int>, double> result;    // used only at end to accumulate results
     queue<int> toVisit;
@@ -69,7 +70,7 @@ pair<stack<int>, double> getShortestRoute(int iStart, int iEnd, vector<Node>& da
     database[iStart].isVisited = true;
 
     while (!toVisit.empty()) {
-        int i = toVisit.back(); toVisit.pop();
+        int i = toVisit.front(); toVisit.pop();
 
         std::cout << "Exploring connections of '" << database[i].name << "'\n";
         for (const auto& edge : database[i].neighbors) {
